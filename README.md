@@ -23,6 +23,14 @@ the README and the data disagree.
 | Peak GPU memory, NF4 vs BF16, batch 1-16 (NVIDIA A100 80GB PCIe) | 13.6-19.6 GB | 4.3-10.3 GB | -47% to -68% |
 <!-- END headline -->
 
+## 7B vs 13B
+
+<!-- BEGIN sizes -->
+| Base model | Zero-shot test | Fine-tuned test (best on val) | Gain | Worst type error, zero-shot -> tuned | Trainable | NF4 / BF16 peak memory, batch 1 and 16 |
+|---|---|---|---|---|---|---|
+| LLaVA-1.5-7B (`v7w_r16_vis`) | 80.6% | 87.0% | +6.4 pts | how: 33.7% -> 25.1% | 68M of 7.1B (0.96%) | 4.3 / 13.6 GB and 10.3 / 19.6 GB |
+<!-- END sizes -->
+
 ## By question type
 
 <!-- BEGIN slices -->
@@ -97,11 +105,11 @@ Measured on one NVIDIA A100 80GB PCIe. Workload: one forward pass over a Visual7
 
 3 recipes were trained; the reported run is the one with the highest accuracy on 5,000 validation questions (test and ScienceQA-IMG shown only for completeness):
 
-| Run | Adapters | Epochs | Wall time | Val accuracy (5,000) | Test accuracy | ScienceQA-IMG | Reported |
-|---|---|---|---|---|---|---|---|
-| `v7w_r16` | LM LoRA + projector | 1 | 79 min | 87.26% | 86.89% | 68.4% |  |
-| `v7w_r16_e2` | LM LoRA + projector | 2 | 154 min | 87.08% | 87.05% | 67.1% |  |
-| `v7w_r16_vis` | LM LoRA + projector + CLIP LoRA | 1 | 84 min | 87.64% | 87.02% | 66.4% | yes |
+| Run | Base | Adapters | Epochs | Wall time | Val accuracy (5,000) | Test accuracy | ScienceQA-IMG | Reported |
+|---|---|---|---|---|---|---|---|---|
+| `v7w_r16` | 7B | LM LoRA + projector | 1 | 79 min | 87.26% | 86.89% | 68.4% |  |
+| `v7w_r16_e2` | 7B | LM LoRA + projector | 2 | 154 min | 87.08% | 87.05% | 67.1% |  |
+| `v7w_r16_vis` | 7B | LM LoRA + projector + CLIP LoRA | 1 | 84 min | 87.64% | 87.02% | 66.4% | yes |
 <!-- END training -->
 
 ## Controls
@@ -167,9 +175,10 @@ pip install -r requirements.txt bitsandbytes==0.50.2
 python -m mmft.cli data v7w --root data/visual7w        # 1.9 GB from Stanford, sha256-checked
 python -m mmft.cli data sqa --root data/sqa             # ScienceQA-IMG test (harness check)
 bash scripts/stage_baseline.sh                          # zero-shot, blank-image control, ScienceQA
-bash scripts/stage_train.sh                             # train, evaluate, merge
-bash scripts/stage_bench.sh                             # bf16 / int8 / nf4 memory and latency, serving
-bash scripts/stage_quant_acc.sh                         # test accuracy at each precision
+bash scripts/stage_train.sh                             # train, evaluate (val, test, ScienceQA)
+bash scripts/stage_merge.sh v7w_r16_vis                 # fold the selected run's adapters into the weights
+bash scripts/stage_bench.sh v7w_r16_vis                 # bf16 / int8 / nf4 memory and latency, serving
+bash scripts/stage_quant_acc.sh v7w_r16_vis             # test accuracy at each precision
 python scripts/gen_readme.py                            # rebuild the tables above
 ```
 

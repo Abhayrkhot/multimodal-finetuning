@@ -22,7 +22,13 @@ from mmft.data import V7W_TYPES  # noqa: E402
 from mmft.evaluate import logits_matrix, read_predictions, summarize  # noqa: E402
 
 R = ROOT / "results" / "explorer"
-RUNS = ("v7w_r16", "v7w_r16_e2", "v7w_r16_vis", "v7w_r16_vis_e2")  # reported: the best on validation
+# Candidate runs; the reported one is the best on validation, across recipes and model sizes.
+RUNS = ("v7w_r16", "v7w_r16_e2", "v7w_r16_vis", "v7w_r16_vis_e2", "v7w_13b_r16", "v7w_13b_r16_vis")
+# base model -> (label, prefix of its zero-shot result files, ScienceQA-IMG reported in the paper)
+SIZES = {
+    "llava-hf/llava-1.5-7b-hf": ("7B", "", "66.8%"),
+    "llava-hf/llava-1.5-13b-hf": ("13B", "13b_", "71.6%"),
+}
 PENDING = "_Pending: not measured yet._"
 
 
@@ -73,6 +79,7 @@ def pick_run() -> tuple[str, list[dict]]:
             rows.append(
                 {
                     "run": run,
+                    "base": t["config"]["model_id"],
                     "recipe": "LM LoRA + projector"
                     + (" + CLIP LoRA" if t["config"].get("vision_lora_targets") else ""),
                     "epochs": t["config"]["epochs"],
@@ -86,13 +93,22 @@ def pick_run() -> tuple[str, list[dict]]:
     return best, rows
 
 
-def headline(zs, ft, sqa_zs, sqa_ft, train, bench) -> str:
+def bench_for(run: str) -> dict:
+    out = {}
+    for q in ("bf16", "int8", "nf4"):
+        p = R / f"bench_{run}_a100_{q}.json"
+        if p.exists():
+            out[q] = json.loads(p.read_text())
+    return out
+
+
+def headline(zs, ft, sqa_zs, sqa_ft, train, bench, size) -> str:
     if not (zs and ft):
         return PENDING
     zw, fw = zs["worst_group"], ft["worst_group"]
     z_err, f_err = 1 - zs["worst_group_acc"], 1 - ft["per_group"][zw]["acc"]
     lines = [
-        "| | Zero-shot LLaVA-1.5-7B | + LoRA fine-tuning | Change |",
+        f"| | Zero-shot LLaVA-1.5-{size} | + LoRA fine-tuning | Change |",
         "|---|---|---|---|",
         f"| Visual7W test accuracy ({ft['n']:,} questions, 95% CI) | {pct(zs['accuracy'])} ± {ci95(zs['accuracy'], zs['n'])} "
         f"| {pct(ft['accuracy'])} ± {ci95(ft['accuracy'], ft['n'])} "
@@ -131,6 +147,39 @@ def headline(zs, ft, sqa_zs, sqa_ft, train, bench) -> str:
             f"| {n4[min(n4)]:.1f}-{n4[max(n4)]:.1f} GB | -{100 * min(red):.0f}% to -{100 * max(red):.0f}% |"
         )
     return "\n".join(lines)
+
+
+def sizes(candidates) -> str:
+    """One row per base model: zero-shot vs its best fine-tuned run (chosen on validation)."""
+    lines = [
+        "| Base model | Zero-shot test | Fine-tuned test (best on val) | Gain | Worst type error, zero-shot -> tuned "
+        "| Trainable | NF4 / BF16 peak memory, batch 1 and 16 |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for base, (label, prefix, _) in SIZES.items():
+        zs = summary(f"zs_{prefix}v7w_test")
+        runs = [c for c in candidates if c["base"] == base]
+        if not (zs and runs):
+            continue
+        best = max(runs, key=lambda c: c["val"])
+        ft = summary(f"ft_{best['run']}_v7w_test")
+        if not ft:
+            continue
+        w = zs["worst_group"]
+        p = json.loads((R / f"train_{best['run']}.json").read_text())["params"]
+        b = bench_for(best["run"])
+        mem = "not measured"
+        if b.get("bf16") and b.get("nf4"):
+            m16 = {r["batch_size"]: r["peak_mem_gb"] for r in b["bf16"]["rows"]}
+            m4 = {r["batch_size"]: r["peak_mem_gb"] for r in b["nf4"]["rows"]}
+            mem = f"{m4[1]:.1f} / {m16[1]:.1f} GB and {m4[16]:.1f} / {m16[16]:.1f} GB"
+        lines.append(
+            f"| LLaVA-1.5-{label} (`{best['run']}`) | {pct(zs['accuracy'])} | {pct(ft['accuracy'])} "
+            f"| +{100 * (ft['accuracy'] - zs['accuracy']):.1f} pts | {w}: {pct(1 - zs['worst_group_acc'])} -> "
+            f"{pct(1 - ft['per_group'][w]['acc'])} | {p['trainable_params'] / 1e6:.0f}M of {p['base_params'] / 1e9:.1f}B "
+            f"({pct(p['trainable_fraction'], 2)}) | {mem} |"
+        )
+    return "\n".join(lines) if len(lines) > 2 else PENDING
 
 
 def slices(zs, ft, blind) -> str:
@@ -216,10 +265,10 @@ def training(train, run, candidates) -> str:
                 f"{len(candidates)} recipes were trained; the reported run is the one with the highest accuracy "
                 "on 5,000 validation questions (test and ScienceQA-IMG shown only for completeness):",
                 "",
-                "| Run | Adapters | Epochs | Wall time | Val accuracy (5,000) | Test accuracy | ScienceQA-IMG | Reported |",
-                "|---|---|---|---|---|---|---|---|",
+                "| Run | Base | Adapters | Epochs | Wall time | Val accuracy (5,000) | Test accuracy | ScienceQA-IMG | Reported |",
+                "|---|---|---|---|---|---|---|---|---|",
                 *[
-                    f"| `{c['run']}` | {c['recipe']} | {c['epochs']} | {c['minutes']:.0f} min | {pct(c['val'], 2)} "
+                    f"| `{c['run']}` | {SIZES[c['base']][0]} | {c['recipe']} | {c['epochs']} | {c['minutes']:.0f} min | {pct(c['val'], 2)} "
                     f"| {pct(c['test'], 2) if c['test'] is not None else 'pending'} "
                     f"| {pct(c['sqa'], 1) if c['sqa'] is not None else 'pending'} | {'yes' if c['run'] == run else ''} |"
                     for c in candidates
@@ -254,14 +303,14 @@ def training(train, run, candidates) -> str:
     )
 
 
-def controls(zs, ft, blind, ft_merged, sqa_zs) -> str:
+def controls(zs, ft, blind, ft_merged, sqa_zs, paper_sqa) -> str:
     if not (zs and ft):
         return PENDING
     lines = []
     if sqa_zs:
         lines.append(
             f"- **Harness check.** Zero-shot ScienceQA-IMG accuracy is {pct(sqa_zs['accuracy'])} with this "
-            "prompt, image padding and letter scoring; the LLaVA-1.5 paper reports 66.8% for the same model "
+            f"prompt, image padding and letter scoring; the LLaVA-1.5 paper reports {paper_sqa} for the same model "
             "(it parses generated text, while this harness compares the option letters' logits directly)."
         )
     if blind:
@@ -304,27 +353,26 @@ def serving(serve, temperature) -> str:
 def render() -> str:
     readme = (ROOT / "README.md").read_text()
     run, candidates = pick_run()
-    zs = summary("zs_v7w_test", "zs_v7w_val5k")
+    base = next((c["base"] for c in candidates if c["run"] == run), "llava-hf/llava-1.5-7b-hf")
+    size, pre, paper_sqa = SIZES[base]
+    zs = summary(f"zs_{pre}v7w_test", f"zs_{pre}v7w_val5k")
     ft = summary(f"ft_{run}_v7w_test", f"ft_{run}_v7w_val5k")
-    blind = summary("blind_v7w_test")
-    sqa_zs, sqa_ft = summary("zs_sqa_test"), summary(f"ft_{run}_sqa_test")
+    blind = summary(f"blind_{pre}v7w_test")
+    sqa_zs, sqa_ft = summary(f"zs_{pre}sqa_test"), summary(f"ft_{run}_sqa_test")
     accs = {q: summary(f"ft_{run}_{q}_v7w_test") for q in ("bf16", "int8", "nf4")}
     train_p = R / f"train_{run}.json"
     train = json.loads(train_p.read_text()) if train_p.exists() else None
-    bench = {}
-    for q in ("bf16", "int8", "nf4"):
-        p = R / f"bench_a100_{q}.json"
-        if p.exists():
-            bench[q] = json.loads(p.read_text())
-    serve_p = R / "serve_a100_nf4.json"
+    bench = bench_for(run)
+    serve_p = R / f"serve_{run}_a100_nf4.json"
     serve = json.loads(serve_p.read_text()) if serve_p.exists() else None
     sections = {
-        "headline": headline(zs, ft, sqa_zs, sqa_ft, train, bench),
+        "headline": headline(zs, ft, sqa_zs, sqa_ft, train, bench, size),
+        "sizes": sizes(candidates),
         "slices": slices(zs, ft, blind),
         "calibration": calibration(zs, ft),
         "quant": quant(bench, accs),
         "training": training(train, run, candidates),
-        "controls": controls(zs, ft, blind, accs.get("bf16"), sqa_zs),
+        "controls": controls(zs, ft, blind, accs.get("bf16"), sqa_zs, paper_sqa),
         "serving": serving(serve, ft["ts"]["temperature"] if ft and "ts" in ft else 1.0),
     }
     for name, body in sections.items():

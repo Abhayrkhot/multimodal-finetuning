@@ -7,6 +7,18 @@ import json
 import time
 from pathlib import Path
 
+DEFAULT_MODEL = "llava-hf/llava-1.5-7b-hf"
+
+
+def _base_model(args) -> str:
+    """--model if given, else the base model recorded with --adapter, else LLaVA-1.5-7B."""
+    if getattr(args, "model", None):
+        return args.model
+    adapter = getattr(args, "adapter", None)
+    if adapter:
+        return json.loads((Path(adapter) / "adapter.json").read_text())["base_model"]
+    return DEFAULT_MODEL
+
 
 def _model(args):
     from .model import load_adapter, load_model, merge_lora
@@ -15,7 +27,7 @@ def _model(args):
     adapter = getattr(args, "adapter", None)
     if adapter and quant not in (None, "bf16"):
         raise SystemExit("quantized runs load a merged model dir (`mmft merge`), not --adapter")
-    processor, model = load_model(args.model, quant=quant)
+    processor, model = load_model(_base_model(args), quant=quant)
     if adapter:
         load_adapter(model, adapter)
         merge_lora(model)
@@ -58,7 +70,7 @@ def cmd_eval(args):
         blind=args.blind,
     )
     meta = {
-        "model": args.model,
+        "model": _base_model(args),
         "adapter": args.adapter,
         "quant": args.quant or "bf16",
         "dataset": args.dataset,
@@ -79,7 +91,7 @@ def cmd_eval(args):
 def cmd_merge(args):
     from .model import load_adapter, load_model, merge_and_save
 
-    processor, model = load_model(args.model)
+    processor, model = load_model(_base_model(args), device=args.device)
     load_adapter(model, args.adapter)
     n = merge_and_save(model, processor, args.out)
     print(f"merged {n} LoRA modules into {args.out}")
@@ -161,7 +173,7 @@ def main(argv=None):
     s.set_defaults(fn=cmd_train)
 
     def model_args(s, adapter=True):
-        s.add_argument("--model", default="llava-hf/llava-1.5-7b-hf", help="HF id or merged model dir")
+        s.add_argument("--model", help="HF id or merged model dir (default: the adapter's base, else 7B)")
         if adapter:
             s.add_argument("--adapter", help="adapter dir from `mmft train` (merged after loading)")
         s.add_argument("--quant", choices=["bf16", "int8", "nf4"])
@@ -180,7 +192,8 @@ def main(argv=None):
     s.set_defaults(fn=cmd_eval)
 
     s = sub.add_parser("merge", help="fold adapters into the base weights and save a bf16 model")
-    s.add_argument("--model", default="llava-hf/llava-1.5-7b-hf")
+    s.add_argument("--model", help="base model (default: the one recorded with the adapter)")
+    s.add_argument("--device", default="cuda", help="cpu works too: the merge is exact in fp32")
     s.add_argument("--adapter", required=True)
     s.add_argument("--out", required=True)
     s.set_defaults(fn=cmd_merge)
