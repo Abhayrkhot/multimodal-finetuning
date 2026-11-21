@@ -4,6 +4,7 @@ save/load the trainable weights, and merge them for deployment."""
 from __future__ import annotations
 
 import json
+import warnings
 from pathlib import Path
 
 import torch
@@ -24,6 +25,8 @@ def quant_config(quant: str | None):
     from transformers import BitsAndBytesConfig
 
     if quant == "int8":
+        # LLM.int8 matmuls run in fp16; bitsandbytes warns on every bf16 input it casts.
+        warnings.filterwarnings("ignore", message="MatMul8bitLt: inputs will be cast")
         return BitsAndBytesConfig(load_in_8bit=True, llm_int8_skip_modules=SKIP_QUANT)
     if quant == "nf4":
         return BitsAndBytesConfig(
