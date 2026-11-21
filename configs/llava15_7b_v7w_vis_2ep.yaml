@@ -1,0 +1,23 @@
+# llava15_7b_v7w_vis.yaml for two epochs (CLIP + language-model adapters). Kept only if it wins on
+# validation.
+model_id: llava-hf/llava-1.5-7b-hf
+data_root: data/visual7w
+n_train: null
+n_val: 2000
+seed: 0
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+train_projector: true
+epochs: 2
+batch_size: 8
+grad_accum: 4
+lr: 2.0e-4
+projector_lr: 2.0e-5
+warmup_ratio: 0.03
+max_grad_norm: 1.0
+gradient_checkpointing: false
+num_workers: 10
+log_every: 10
+eval_every: 500
+vision_lora_targets: [q_proj, k_proj, v_proj, out_proj, fc1, fc2]

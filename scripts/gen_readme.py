@@ -22,7 +22,7 @@ from mmft.data import V7W_TYPES  # noqa: E402
 from mmft.evaluate import logits_matrix, read_predictions, summarize  # noqa: E402
 
 R = ROOT / "results" / "explorer"
-RUNS = ("v7w_r16", "v7w_r16_e2", "v7w_r16_vis")  # reported: the best on validation
+RUNS = ("v7w_r16", "v7w_r16_e2", "v7w_r16_vis", "v7w_r16_vis_e2")  # reported: the best on validation
 PENDING = "_Pending: not measured yet._"
 
 
