@@ -22,12 +22,20 @@ from mmft.data import V7W_TYPES  # noqa: E402
 from mmft.evaluate import logits_matrix, read_predictions, summarize  # noqa: E402
 
 R = ROOT / "results" / "explorer"
-RUN = "v7w_r16"
+RUNS = ("v7w_r16", "v7w_r16_e2")  # 1 and 2 epochs; the reported run is the better one on validation
 PENDING = "_Pending: not measured yet._"
 
 
 def pct(x: float, d: int = 1) -> str:
     return f"{100 * x:.{d}f}%"
+
+
+def err_cut(before_acc: float, after_acc: float) -> str:
+    """Relative reduction in error rate, e.g. 20% -> 10% error is -50%."""
+    if before_acc >= 1.0:
+        return "n/a"
+    x = round(-100 * (1 - (1 - after_acc) / (1 - before_acc)))
+    return f"{x:+d}%" if x else "0%"
 
 
 def load(name: str):
@@ -49,6 +57,27 @@ def summary(name: str, val: str | None = None) -> dict | None:
     return s
 
 
+def pick_run() -> tuple[str, list[dict]]:
+    """Choose the training run by accuracy on the 5,000-question validation subset."""
+    rows = []
+    for run in RUNS:
+        val, test = summary(f"ft_{run}_v7w_val5k"), summary(f"ft_{run}_v7w_test")
+        tp = R / f"train_{run}.json"
+        if val and tp.exists():
+            t = json.loads(tp.read_text())
+            rows.append(
+                {
+                    "run": run,
+                    "epochs": t["config"]["epochs"],
+                    "val": val["accuracy"],
+                    "test": test["accuracy"] if test else None,
+                    "minutes": t["train_seconds"] / 60,
+                }
+            )
+    best = max(rows, key=lambda r: r["val"])["run"] if rows else RUNS[0]
+    return best, rows
+
+
 def headline(zs, ft, sqa_zs, sqa_ft, train, bench) -> str:
     if not (zs and ft):
         return PENDING
@@ -60,7 +89,7 @@ def headline(zs, ft, sqa_zs, sqa_ft, train, bench) -> str:
         f"| Visual7W test accuracy ({ft['n']:,} questions) | {pct(zs['accuracy'])} | {pct(ft['accuracy'])} "
         f"| +{100 * (ft['accuracy'] - zs['accuracy']):.1f} pts |",
         f"| Error on the worst question type (*{zw}*) | {pct(z_err)} | {pct(f_err)} "
-        f"| -{100 * (1 - f_err / z_err):.0f}% relative |",
+        f"| {err_cut(1 - z_err, 1 - f_err)} relative |",
     ]
     if fw != zw:
         lines.append(
@@ -116,7 +145,7 @@ def slices(zs, ft, blind) -> str:
             z, f = zs["per_group"][t]["acc"], ft["per_group"][t]["acc"]
             b = blind["per_group"][t]["acc"] if blind else None
         row = f"| {name} | {n:,} |" + (f" {pct(b)} |" if blind else "")
-        row += f" {pct(z)} | {pct(f)} | -{100 * (1 - (1 - f) / (1 - z)):.0f}% |"
+        row += f" {pct(z)} | {pct(f)} | {err_cut(z, f)} |"
         lines.append(row)
     return "\n".join(lines)
 
@@ -166,25 +195,45 @@ def quant(bench, accs) -> str:
     return "\n".join(lines)
 
 
-def training(train) -> str:
+def training(train, run, candidates) -> str:
     if not train:
         return PENDING
+    sel = ""
+    if len(candidates) > 1:
+        sel = "\n".join(
+            [
+                "",
+                "Two schedules were trained; the reported run is the one with higher accuracy on 5,000 validation "
+                "questions (test accuracy shown only for completeness):",
+                "",
+                "| Run | Epochs | Wall time | Val accuracy (5,000) | Test accuracy | Reported |",
+                "|---|---|---|---|---|---|",
+                *[
+                    f"| `{c['run']}` | {c['epochs']} | {c['minutes']:.0f} min | {pct(c['val'], 2)} "
+                    f"| {pct(c['test'], 2) if c['test'] is not None else 'pending'} | {'yes' if c['run'] == run else ''} |"
+                    for c in candidates
+                ],
+            ]
+        )
     c, p, e = train["config"], train["params"], train["env"]
-    return "\n".join(
-        [
-            "| | |",
-            "|---|---|",
-            f"| Training questions | {train['n_train']:,} (Visual7W train, {c['epochs']} epoch) |",
-            f"| Adapters | LoRA r={c['lora_r']}, alpha={c['lora_alpha']:g} on {p['lora_modules']} language-model linear layers "
-            f"({p['lora_params'] / 1e6:.1f}M) + projector ({p['projector_params'] / 1e6:.1f}M) |",
-            f"| Optimiser | AdamW, lr {c['lr']:g} (LoRA) / {c['projector_lr']:g} (projector), cosine, "
-            f"{pct(c['warmup_ratio'], 0)} warmup, batch {c['batch_size'] * c['grad_accum']} |",
-            f"| Steps / wall time | {train['optimizer_steps']:,} / {train['train_seconds'] / 60:.0f} min on one {e['gpu']} |",
-            f"| Throughput / peak memory | {train['samples_per_s']:.1f} questions/s, {train['tokens_per_s']:,.0f} tokens/s "
-            f"/ {train['peak_mem_gb']:.1f} GB |",
-            f"| Val accuracy (2,000-question monitor subset) at end | {pct(train['final_val_acc'])} |",
-            f"| Code / stack | `{e['git_sha']}`, torch {e['torch']} (CUDA {e['cuda']}), transformers {e['transformers']} |",
-        ]
+    return (
+        "\n".join(
+            [
+                "| | |",
+                "|---|---|",
+                f"| Training questions | {train['n_train']:,} (Visual7W train) x {c['epochs']} epoch(s) |",
+                f"| Adapters | LoRA r={c['lora_r']}, alpha={c['lora_alpha']:g} on {p['lora_modules']} language-model linear layers "
+                f"({p['lora_params'] / 1e6:.1f}M) + projector ({p['projector_params'] / 1e6:.1f}M) |",
+                f"| Optimiser | AdamW, lr {c['lr']:g} (LoRA) / {c['projector_lr']:g} (projector), cosine, "
+                f"{pct(c['warmup_ratio'], 0)} warmup, batch {c['batch_size'] * c['grad_accum']} |",
+                f"| Steps / wall time | {train['optimizer_steps']:,} / {train['train_seconds'] / 60:.0f} min on one {e['gpu']} |",
+                f"| Throughput / peak memory | {train['samples_per_s']:.1f} questions/s, {train['tokens_per_s']:,.0f} tokens/s "
+                f"/ {train['peak_mem_gb']:.1f} GB |",
+                f"| Val accuracy at end ({train['n_val_monitor']:,}-question monitor subset) | {pct(train['final_val_acc'])} |",
+                f"| Code / stack | `{e['git_sha']}`, torch {e['torch']} (CUDA {e['cuda']}), transformers {e['transformers']} |",
+            ]
+        )
+        + sel
     )
 
 
@@ -236,12 +285,13 @@ def serving(serve, temperature) -> str:
 
 def render() -> str:
     readme = (ROOT / "README.md").read_text()
+    run, candidates = pick_run()
     zs = summary("zs_v7w_test", "zs_v7w_val5k")
-    ft = summary(f"ft_{RUN}_v7w_test", f"ft_{RUN}_v7w_val5k")
+    ft = summary(f"ft_{run}_v7w_test", f"ft_{run}_v7w_val5k")
     blind = summary("blind_v7w_test")
-    sqa_zs, sqa_ft = summary("zs_sqa_test"), summary(f"ft_{RUN}_sqa_test")
-    accs = {q: summary(f"ft_{RUN}_{q}_v7w_test") for q in ("bf16", "int8", "nf4")}
-    train_p = R / f"train_{RUN}.json"
+    sqa_zs, sqa_ft = summary("zs_sqa_test"), summary(f"ft_{run}_sqa_test")
+    accs = {q: summary(f"ft_{run}_{q}_v7w_test") for q in ("bf16", "int8", "nf4")}
+    train_p = R / f"train_{run}.json"
     train = json.loads(train_p.read_text()) if train_p.exists() else None
     bench = {}
     for q in ("bf16", "int8", "nf4"):
@@ -255,7 +305,7 @@ def render() -> str:
         "slices": slices(zs, ft, blind),
         "calibration": calibration(zs, ft),
         "quant": quant(bench, accs),
-        "training": training(train),
+        "training": training(train, run, candidates),
         "controls": controls(zs, ft, blind, accs.get("bf16"), sqa_zs),
         "serving": serving(serve, ft["ts"]["temperature"] if ft and "ts" in ft else 1.0),
     }
