@@ -13,19 +13,38 @@ the README and the data disagree.
 ## Results
 
 <!-- BEGIN headline -->
-_Pending: not measured yet._
+| | Zero-shot LLaVA-1.5-7B | + LoRA fine-tuning | Change |
+|---|---|---|---|
+| Visual7W test accuracy (42,030 questions, 95% CI) | 80.6% ± 0.4 | 87.0% ± 0.3 | +6.4 pts |
+| Error on the worst question type (*how*) | 33.7% | 25.1% | -25% relative |
+| Expected calibration error, raw / temperature-scaled | 6.2% / 1.4% | 1.4% / 0.6% | |
+| ScienceQA-IMG accuracy (never trained on; forgetting check) | 68.8% | 66.4% | -2.4 pts |
+| Trainable parameters | 7.06B (full fine-tune) | 67.7M (0.96%) | -99.0% |
 <!-- END headline -->
 
 ## By question type
 
 <!-- BEGIN slices -->
-_Pending: not measured yet._
+| Question type | Questions | Blank image (zero-shot) | Zero-shot | Fine-tuned | Error reduction |
+|---|---|---|---|---|---|
+| what | 20,099 | 39.5% | 83.0% | 88.7% | -34% |
+| where | 6,922 | 33.6% | 83.8% | 90.4% | -41% |
+| when | 1,897 | 61.5% | 83.6% | 90.1% | -40% |
+| who | 4,215 | 52.2% | 84.9% | 90.5% | -37% |
+| why | 2,632 | 56.1% | 79.0% | 86.1% | -34% |
+| how | 6,265 | 48.1% | 66.3% | 74.9% | -25% |
+| **all** | 42,030 | 43.1% | 80.6% | 87.0% | -33% |
 <!-- END slices -->
 
 ## Calibration
 
 <!-- BEGIN calibration -->
-_Pending: not measured yet._
+| Model | Temperature | Accuracy | Mean confidence | ECE | NLL | Brier |
+|---|---|---|---|---|---|---|
+| Zero-shot, raw | 1.00 | 80.6% | 86.8% | 6.22% | 0.544 | 0.281 |
+| Zero-shot, scaled | 1.36 | 80.6% | 81.9% | 1.39% | 0.513 | 0.272 |
+| Fine-tuned, raw | 1.00 | 87.0% | 88.4% | 1.42% | 0.336 | 0.181 |
+| Fine-tuned, scaled | 1.07 | 87.0% | 87.6% | 0.57% | 0.335 | 0.181 |
 <!-- END calibration -->
 
 ## Quantized inference
@@ -43,13 +62,29 @@ _Pending: not measured yet._
 ## Training run
 
 <!-- BEGIN training -->
-_Pending: not measured yet._
+| | |
+|---|---|
+| Training questions | 69,817 (Visual7W train) x 1 epoch(s) |
+| Adapters | LoRA r=16, alpha=32 on 224 language-model linear layers (40.0M) + 138 CLIP linear layers (6.8M) + projector (21.0M) |
+| Optimiser | AdamW, lr 0.0002 (LoRA) / 2e-05 (projector), cosine, 3% warmup, batch 32 |
+| Steps / wall time | 2,181 / 84 min on one NVIDIA H200 |
+| Throughput / peak memory | 13.9 questions/s, 9,273 tokens/s / 64.2 GB |
+| Val accuracy at end (2,000-question monitor subset) | 88.3% |
+| Code / stack | `f98bfb8`, torch 2.14.1+cu126 (CUDA 12.6), transformers 5.24.0 |
+2 recipes were trained; the reported run is the one with the highest accuracy on 5,000 validation questions (test accuracy shown only for completeness):
+
+| Run | Adapters | Epochs | Wall time | Val accuracy (5,000) | Test accuracy | Reported |
+|---|---|---|---|---|---|---|
+| `v7w_r16` | LM LoRA + projector | 1 | 79 min | 87.26% | 86.89% |  |
+| `v7w_r16_vis` | LM LoRA + projector + CLIP LoRA | 1 | 84 min | 87.64% | 87.02% | yes |
 <!-- END training -->
 
 ## Controls
 
 <!-- BEGIN controls -->
-_Pending: not measured yet._
+- **Harness check.** Zero-shot ScienceQA-IMG accuracy is 68.8% with this prompt, image padding and letter scoring; the LLaVA-1.5 paper reports 66.8% for the same model.
+- **The image matters.** With every image replaced by a blank one, zero-shot accuracy falls from 80.6% to 43.1% (chance is 25%): Visual7W's distractors leave some text-only signal, which is why the blank-image row is reported per type.
+- **No answer-position shortcut.** Correct answers are uniform over A-D by construction; the fine-tuned model predicts A 25.2%, B 25.1%, C 24.9%, D 24.8%.
 <!-- END controls -->
 
 ## How it works
