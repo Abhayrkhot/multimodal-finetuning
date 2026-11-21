@@ -78,6 +78,7 @@ def pick_run() -> tuple[str, list[dict]]:
                     "epochs": t["config"]["epochs"],
                     "val": val["accuracy"],
                     "test": test["accuracy"] if test else None,
+                    "sqa": sqa["accuracy"] if (sqa := summary(f"ft_{run}_sqa_test")) else None,
                     "minutes": t["train_seconds"] / 60,
                 }
             )
@@ -213,13 +214,14 @@ def training(train, run, candidates) -> str:
                 "",
                 "",
                 f"{len(candidates)} recipes were trained; the reported run is the one with the highest accuracy "
-                "on 5,000 validation questions (test accuracy shown only for completeness):",
+                "on 5,000 validation questions (test and ScienceQA-IMG shown only for completeness):",
                 "",
-                "| Run | Adapters | Epochs | Wall time | Val accuracy (5,000) | Test accuracy | Reported |",
-                "|---|---|---|---|---|---|---|",
+                "| Run | Adapters | Epochs | Wall time | Val accuracy (5,000) | Test accuracy | ScienceQA-IMG | Reported |",
+                "|---|---|---|---|---|---|---|---|",
                 *[
                     f"| `{c['run']}` | {c['recipe']} | {c['epochs']} | {c['minutes']:.0f} min | {pct(c['val'], 2)} "
-                    f"| {pct(c['test'], 2) if c['test'] is not None else 'pending'} | {'yes' if c['run'] == run else ''} |"
+                    f"| {pct(c['test'], 2) if c['test'] is not None else 'pending'} "
+                    f"| {pct(c['sqa'], 1) if c['sqa'] is not None else 'pending'} | {'yes' if c['run'] == run else ''} |"
                     for c in candidates
                 ],
             ]
@@ -259,7 +261,8 @@ def controls(zs, ft, blind, ft_merged, sqa_zs) -> str:
     if sqa_zs:
         lines.append(
             f"- **Harness check.** Zero-shot ScienceQA-IMG accuracy is {pct(sqa_zs['accuracy'])} with this "
-            "prompt, image padding and letter scoring; the LLaVA-1.5 paper reports 66.8% for the same model."
+            "prompt, image padding and letter scoring; the LLaVA-1.5 paper reports 66.8% for the same model "
+            "(it parses generated text, while this harness compares the option letters' logits directly)."
         )
     if blind:
         lines.append(
@@ -287,7 +290,7 @@ def serving(serve, temperature) -> str:
     return "\n".join(
         [
             f"`mmft serve` on the NF4 model (temperature {temperature:.2f} fitted on validation, abstain below 50%), "
-            f"{serve['n']} test questions sent one at a time over HTTP on the same GPU:",
+            f"a random sample of {serve['n']} test questions sent one at a time over HTTP on the same GPU:",
             "",
             "| Agreement with offline NF4 predictions | Accuracy | Abstained | Server latency p50 / p95 | Client latency p50 / p95 |",
             "|---|---|---|---|---|",

@@ -1,0 +1,62 @@
+{
+  "config": {
+    "model_id": "llava-hf/llava-1.5-7b-hf",
+    "data_root": "data/visual7w",
+    "n_train": null,
+    "n_val": 2000,
+    "seed": 0,
+    "lora_r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.05,
+    "lora_targets": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "train_projector": true,
+    "epochs": 2,
+    "batch_size": 8,
+    "grad_accum": 4,
+    "lr": 0.0002,
+    "projector_lr": 2e-05,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03,
+    "max_grad_norm": 1.0,
+    "gradient_checkpointing": false,
+    "num_workers": 10,
+    "log_every": 10,
+    "eval_every": 500,
+    "extra": {}
+  },
+  "params": {
+    "base_params": 7063427072,
+    "trainable_params": 60956672,
+    "lora_params": 39976960,
+    "projector_params": 20979712,
+    "lora_modules": 224,
+    "trainable_fraction": 0.00862990038385718
+  },
+  "n_train": 69817,
+  "n_val_monitor": 2000,
+  "optimizer_steps": 4362,
+  "train_seconds": 9234.240810871124,
+  "samples_per_s": 15.115915088078816,
+  "tokens_per_s": 10091.10829016916,
+  "peak_mem_gb": 57.91245937347412,
+  "final_val_acc": 0.8675,
+  "env": {
+    "git_sha": "d5f1624",
+    "utc": "2026-11-21T21:58:38Z",
+    "gpu": "NVIDIA H200",
+    "gpu_mem_gb": 139.8,
+    "python": "3.13.5",
+    "torch": "2.14.1+cu126",
+    "cuda": "12.6",
+    "transformers": "5.24.0",
+    "bitsandbytes": "0.50.2"
+  }
+}

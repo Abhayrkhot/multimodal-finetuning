@@ -20,6 +20,7 @@ the README and the data disagree.
 | Expected calibration error, raw / temperature-scaled | 6.2% / 1.4% | 1.4% / 0.6% | |
 | ScienceQA-IMG accuracy (never trained on; forgetting check) | 68.8% | 66.4% | -2.4 pts |
 | Trainable parameters | 7.06B (full fine-tune) | 67.7M (0.96%) | -99.0% |
+| Peak GPU memory, NF4 vs BF16, batch 1-16 (NVIDIA A100 80GB PCIe) | 13.6-19.6 GB | 4.3-10.3 GB | -47% to -68% |
 <!-- END headline -->
 
 ## By question type
@@ -50,13 +51,35 @@ the README and the data disagree.
 ## Quantized inference
 
 <!-- BEGIN quant -->
-_Pending: not measured yet._
+Measured on one NVIDIA A100 80GB PCIe. Workload: one forward pass over a Visual7W prompt (~663 tokens incl. 576 image tokens) that scores the answer letters. Peak memory is `torch.cuda.max_memory_allocated`; latency is the median of 20 CUDA-event-timed runs.
+
+| Precision | Weights in memory | Test accuracy | Batch | Peak memory | vs BF16 | Latency p50 | Questions/s |
+|---|---|---|---|---|---|---|---|
+| BF16 | 13.16 GB | 87.0% | 1 | 13.57 GB |  | 71.2 ms | 14.0 |
+|  |  |  | 2 | 13.97 GB |  | 128.4 ms | 15.6 |
+|  |  |  | 4 | 14.77 GB |  | 255.4 ms | 15.7 |
+|  |  |  | 8 | 16.39 GB |  | 480.1 ms | 16.7 |
+|  |  |  | 16 | 19.63 GB |  | 935.6 ms | 17.1 |
+| INT8 | 6.84 GB | 86.9% | 1 | 7.28 GB | -46% | 193.9 ms | 5.2 |
+|  |  |  | 2 | 7.71 GB | -45% | 238.0 ms | 8.4 |
+|  |  |  | 4 | 8.57 GB | -42% | 380.9 ms | 10.5 |
+|  |  |  | 8 | 10.31 GB | -37% | 656.9 ms | 12.2 |
+|  |  |  | 16 | 13.79 GB | -30% | 1232.8 ms | 13.0 |
+| NF4 | 3.79 GB | 86.7% | 1 | 4.28 GB | -68% | 99.3 ms | 10.1 |
+|  |  |  | 2 | 4.68 GB | -66% | 154.6 ms | 12.9 |
+|  |  |  | 4 | 5.45 GB | -63% | 284.0 ms | 14.1 |
+|  |  |  | 8 | 7.06 GB | -57% | 515.6 ms | 15.5 |
+|  |  |  | 16 | 10.34 GB | -47% | 986.6 ms | 16.2 |
 <!-- END quant -->
 
 ## Serving
 
 <!-- BEGIN serving -->
-_Pending: not measured yet._
+`mmft serve` on the NF4 model (temperature 1.07 fitted on validation, abstain below 50%), a random sample of 500 test questions sent one at a time over HTTP on the same GPU:
+
+| Agreement with offline NF4 predictions | Accuracy | Abstained | Server latency p50 / p95 | Client latency p50 / p95 |
+|---|---|---|---|---|
+| 99.6% | 85.0% | 7.8% | 112 / 124 ms | 114 / 126 ms |
 <!-- END serving -->
 
 ## Training run
@@ -72,20 +95,22 @@ _Pending: not measured yet._
 | Val accuracy at end (2,000-question monitor subset) | 88.3% |
 | Code / stack | `f98bfb8`, torch 2.14.1+cu126 (CUDA 12.6), transformers 5.24.0 |
 
-2 recipes were trained; the reported run is the one with the highest accuracy on 5,000 validation questions (test accuracy shown only for completeness):
+3 recipes were trained; the reported run is the one with the highest accuracy on 5,000 validation questions (test and ScienceQA-IMG shown only for completeness):
 
-| Run | Adapters | Epochs | Wall time | Val accuracy (5,000) | Test accuracy | Reported |
-|---|---|---|---|---|---|---|
-| `v7w_r16` | LM LoRA + projector | 1 | 79 min | 87.26% | 86.89% |  |
-| `v7w_r16_vis` | LM LoRA + projector + CLIP LoRA | 1 | 84 min | 87.64% | 87.02% | yes |
+| Run | Adapters | Epochs | Wall time | Val accuracy (5,000) | Test accuracy | ScienceQA-IMG | Reported |
+|---|---|---|---|---|---|---|---|
+| `v7w_r16` | LM LoRA + projector | 1 | 79 min | 87.26% | 86.89% | 68.4% |  |
+| `v7w_r16_e2` | LM LoRA + projector | 2 | 154 min | 87.08% | 87.05% | 67.1% |  |
+| `v7w_r16_vis` | LM LoRA + projector + CLIP LoRA | 1 | 84 min | 87.64% | 87.02% | 66.4% | yes |
 <!-- END training -->
 
 ## Controls
 
 <!-- BEGIN controls -->
-- **Harness check.** Zero-shot ScienceQA-IMG accuracy is 68.8% with this prompt, image padding and letter scoring; the LLaVA-1.5 paper reports 66.8% for the same model.
+- **Harness check.** Zero-shot ScienceQA-IMG accuracy is 68.8% with this prompt, image padding and letter scoring; the LLaVA-1.5 paper reports 66.8% for the same model (it parses generated text, while this harness compares the option letters' logits directly).
 - **The image matters.** With every image replaced by a blank one, zero-shot accuracy falls from 80.6% to 43.1% (chance is 25%): Visual7W's distractors leave some text-only signal, which is why the blank-image row is reported per type.
 - **No answer-position shortcut.** Correct answers are uniform over A-D by construction; the fine-tuned model predicts A 25.2%, B 25.1%, C 24.9%, D 24.8%.
+- **Merging is lossless.** The merged BF16 checkpoint scores 87.02% vs 87.02% with separate adapters (+0.00 pts).
 <!-- END controls -->
 
 ## How it works
