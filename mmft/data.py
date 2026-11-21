@@ -117,20 +117,28 @@ def download_v7w(root: str | Path) -> None:
     print(f"visual7w: {n} images under {root / 'images'}")
 
 
+SQA_REPO = "lmms-lab/ScienceQA-IMG"
+SQA_REVISION = "b9984af01798586705cee1fbdfa80a6dcbef04f1"
+SQA_TEST_FILE = "data/test-00000-of-00001.parquet"
+
+
 def prepare_sqa(root: str | Path) -> None:
-    """Write ScienceQA-IMG test (2,017 questions with an image) to disk as images + JSONL."""
-    from datasets import load_dataset
+    """Write ScienceQA-IMG test (2,017 questions with an image) to disk as images + JSONL, from a
+    pinned revision of the lmms-eval parquet."""
+    from datasets import Dataset
+    from huggingface_hub import hf_hub_download
 
     root = Path(root)
     (root / "images").mkdir(parents=True, exist_ok=True)
-    ds = load_dataset("lmms-lab/ScienceQA", "ScienceQA-IMG", split="test")
+    path = hf_hub_download(SQA_REPO, SQA_TEST_FILE, repo_type="dataset", revision=SQA_REVISION)
+    ds = Dataset.from_parquet(path)
     with (root / "test.jsonl").open("w") as f:
         for i, ex in enumerate(ds):
-            path = root / "images" / f"{i:05d}.png"
-            if not path.exists():
-                ex["image"].convert("RGB").save(path)
+            img_path = root / "images" / f"{i:05d}.png"
+            if not img_path.exists():
+                ex["image"].convert("RGB").save(img_path)
             row = {k: ex[k] for k in ("question", "choices", "answer", "hint", "subject", "grade")}
-            f.write(json.dumps({"qid": f"sqa-{i:05d}", "image": path.name, **row}) + "\n")
+            f.write(json.dumps({"qid": f"sqa-{i:05d}", "image": img_path.name, **row}) + "\n")
     print(f"scienceqa-img: {len(ds)} test questions under {root}")
 
 
