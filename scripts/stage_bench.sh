@@ -1,6 +1,7 @@
-# Quantized inference on one GPU: memory/latency/throughput per batch size for bf16, int8 and NF4,
-# test accuracy of each precision (bf16 here also checks that merging changed nothing), then the
-# HTTP service on NF4 against the offline NF4 predictions.
+# Quantized inference on one GPU (fits the 1 h `sharing` partition): memory, latency and
+# throughput per batch size for bf16, int8 and NF4, then the HTTP service on NF4 checked against
+# offline NF4 predictions for the same 500 test questions. Full-test accuracy per precision is
+# stage_quant_acc.sh.
 #   stage_bench.sh [run-name] [gpu-tag]
 set -euo pipefail
 NAME=${1:-v7w_r16}; TAG=${2:-a100}
@@ -8,9 +9,8 @@ R=results/explorer; M=runs/${NAME}_merged; mkdir -p $R
 for q in bf16 int8 nf4; do
   mmft bench --model $M --quant $q --root data/visual7w --out $R/bench_${TAG}_${q}.json
 done
-for q in bf16 nf4 int8; do
-  mmft eval --model $M --quant $q --root data/visual7w --split test --out $R/ft_${NAME}_${q}_v7w_test.jsonl.gz
-done
+mmft eval --model $M --quant nf4 --root data/visual7w --split test --limit 500 --seed 1 \
+  --out $R/serve_${TAG}_nf4_offline.jsonl.gz
 
 # Serving: temperature fitted on validation predictions, abstain below 50% confidence.
 T=$(python -c "
@@ -26,4 +26,4 @@ for _ in $(seq 120); do
   sleep 5
 done
 python "$MMFT_SRC/scripts/serve_check.py" --url "http://127.0.0.1:$PORT" --root data/visual7w \
-  --preds $R/ft_${NAME}_nf4_v7w_test.jsonl.gz --n 500 --out $R/serve_${TAG}_nf4.json
+  --preds $R/serve_${TAG}_nf4_offline.jsonl.gz --n 500 --out $R/serve_${TAG}_nf4.json

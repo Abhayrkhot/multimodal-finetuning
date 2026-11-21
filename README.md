@@ -143,7 +143,8 @@ python -m mmft.cli data v7w --root data/visual7w        # 1.9 GB from Stanford, 
 python -m mmft.cli data sqa --root data/sqa             # ScienceQA-IMG test (harness check)
 bash scripts/stage_baseline.sh                          # zero-shot, blank-image control, ScienceQA
 bash scripts/stage_train.sh                             # train, evaluate, merge
-bash scripts/stage_bench.sh                             # bf16 / int8 / nf4 memory, latency, accuracy
+bash scripts/stage_bench.sh                             # bf16 / int8 / nf4 memory and latency, serving
+bash scripts/stage_quant_acc.sh                         # test accuracy at each precision
 python scripts/gen_readme.py                            # rebuild the tables above
 ```
 
