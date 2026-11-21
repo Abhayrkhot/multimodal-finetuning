@@ -22,7 +22,7 @@ from mmft.data import V7W_TYPES  # noqa: E402
 from mmft.evaluate import logits_matrix, read_predictions, summarize  # noqa: E402
 
 R = ROOT / "results" / "explorer"
-RUNS = ("v7w_r16", "v7w_r16_e2")  # 1 and 2 epochs; the reported run is the better one on validation
+RUNS = ("v7w_r16", "v7w_r16_e2", "v7w_r16_vis")  # reported: the best on validation
 PENDING = "_Pending: not measured yet._"
 
 
@@ -73,6 +73,8 @@ def pick_run() -> tuple[str, list[dict]]:
             rows.append(
                 {
                     "run": run,
+                    "recipe": "LM LoRA + projector"
+                    + (" + CLIP LoRA" if t["config"].get("vision_lora_targets") else ""),
                     "epochs": t["config"]["epochs"],
                     "val": val["accuracy"],
                     "test": test["accuracy"] if test else None,
@@ -209,13 +211,13 @@ def training(train, run, candidates) -> str:
         sel = "\n".join(
             [
                 "",
-                "Two schedules were trained; the reported run is the one with higher accuracy on 5,000 validation "
-                "questions (test accuracy shown only for completeness):",
+                f"{len(candidates)} recipes were trained; the reported run is the one with the highest accuracy "
+                "on 5,000 validation questions (test accuracy shown only for completeness):",
                 "",
-                "| Run | Epochs | Wall time | Val accuracy (5,000) | Test accuracy | Reported |",
-                "|---|---|---|---|---|---|",
+                "| Run | Adapters | Epochs | Wall time | Val accuracy (5,000) | Test accuracy | Reported |",
+                "|---|---|---|---|---|---|---|",
                 *[
-                    f"| `{c['run']}` | {c['epochs']} | {c['minutes']:.0f} min | {pct(c['val'], 2)} "
+                    f"| `{c['run']}` | {c['recipe']} | {c['epochs']} | {c['minutes']:.0f} min | {pct(c['val'], 2)} "
                     f"| {pct(c['test'], 2) if c['test'] is not None else 'pending'} | {'yes' if c['run'] == run else ''} |"
                     for c in candidates
                 ],
@@ -229,7 +231,13 @@ def training(train, run, candidates) -> str:
                 "|---|---|",
                 f"| Training questions | {train['n_train']:,} (Visual7W train) x {c['epochs']} epoch(s) |",
                 f"| Adapters | LoRA r={c['lora_r']}, alpha={c['lora_alpha']:g} on {p['lora_modules']} language-model linear layers "
-                f"({p['lora_params'] / 1e6:.1f}M) + projector ({p['projector_params'] / 1e6:.1f}M) |",
+                f"({(p['lora_params'] - p.get('vision_lora_params', 0)) / 1e6:.1f}M)"
+                + (
+                    f" + {p['vision_lora_modules']} CLIP linear layers ({p['vision_lora_params'] / 1e6:.1f}M)"
+                    if p.get("vision_lora_modules")
+                    else ""
+                )
+                + f" + projector ({p['projector_params'] / 1e6:.1f}M) |",
                 f"| Optimiser | AdamW, lr {c['lr']:g} (LoRA) / {c['projector_lr']:g} (projector), cosine, "
                 f"{pct(c['warmup_ratio'], 0)} warmup, batch {c['batch_size'] * c['grad_accum']} |",
                 f"| Steps / wall time | {train['optimizer_steps']:,} / {train['train_seconds'] / 60:.0f} min on one {e['gpu']} |",

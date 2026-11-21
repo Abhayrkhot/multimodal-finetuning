@@ -8,7 +8,7 @@ import torch
 from mmft.batching import Collator, Encoder, chat_text
 from mmft.config import TrainConfig
 from mmft.evaluate import letter_logits, predict, summarize
-from mmft.model import load_adapter, prepare_for_training
+from mmft.model import LM_TARGETS, load_adapter, prepare_for_training
 from mmft.train import train
 from tests.conftest import make_tiny_llava
 
@@ -110,3 +110,43 @@ def test_train_save_load_merge(processor, color_items, tmp_path):
     assert summarize(merged)["accuracy"] == summarize(ref)["accuracy"]
     for r1, r2 in zip(ref, merged, strict=True):
         assert max(abs(a - b) for a, b in zip(r1["logits"], r2["logits"], strict=True)) < 1e-2
+
+
+def test_vision_adapters_skip_unused_clip_layers(processor, color_items, tmp_path):
+    """CLIP features come from the penultimate layer, so only the layers before it get adapters,
+    and every adapter receives a gradient."""
+    from mmft.model import VISION_TARGETS, save_adapter
+
+    model = make_tiny_llava()
+    c = prepare_for_training(model, r=4, alpha=8, dropout=0.0, vision_targets=VISION_TARGETS)
+    assert c["vision_lora_modules"] == 6  # tiny CLIP: 2 layers, layer 1 unused -> 6 linears in layer 0
+    assert not any(
+        "layers.1." in n for n, _ in model.named_parameters() if "vision_tower" in n and ".lora_" in n
+    )
+
+    enc = Encoder(processor)
+    batch = Collator(enc.pad_id, enc.letter_ids, enc.eos_id, train=True)(
+        [enc.encode(it) for it in color_items[:2]]
+    )
+    out = model(
+        input_ids=batch["input_ids"],
+        attention_mask=batch["attention_mask"],
+        position_ids=batch["position_ids"],
+        pixel_values=batch["pixel_values"],
+        logits_to_keep=3,
+    )
+    out.logits.float().pow(2).mean().backward()
+    assert all(p.grad is not None for n, p in model.named_parameters() if p.requires_grad and "lora_B" in n)
+
+    for n, p in model.named_parameters():
+        if ".lora_B" in n:
+            torch.nn.init.normal_(p, std=0.05)
+    meta = {
+        "lora": {"r": 4, "alpha": 8, "targets": list(LM_TARGETS), "modules": c["lora_modules"]},
+        "vision_lora": {"targets": list(VISION_TARGETS), "modules": 6},
+    }
+    save_adapter(model, tmp_path / "a", meta)
+    fresh = make_tiny_llava()
+    load_adapter(fresh, tmp_path / "a")
+    ids = torch.tensor(enc.letter_ids)
+    torch.testing.assert_close(letter_logits(fresh, batch, ids), letter_logits(model, batch, ids))

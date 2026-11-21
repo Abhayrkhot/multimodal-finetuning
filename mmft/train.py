@@ -51,6 +51,7 @@ def train(
         alpha=cfg.lora_alpha,
         dropout=cfg.lora_dropout,
         targets=cfg.lora_targets,
+        vision_targets=cfg.vision_lora_targets,
         train_projector=cfg.train_projector,
     )
     print(json.dumps(counts), flush=True)
@@ -161,6 +162,11 @@ def train(
             "targets": list(cfg.lora_targets),
             "modules": counts["lora_modules"],
         },
+        "vision_lora": (
+            {"targets": list(cfg.vision_lora_targets), "modules": counts["vision_lora_modules"]}
+            if cfg.vision_lora_targets
+            else None
+        ),
         "train_projector": cfg.train_projector,
         "params": counts,
     }

@@ -5,7 +5,8 @@ mmft eval --root data/visual7w --split val --limit 256 --out $S/zs_val.jsonl.gz
 mmft eval --dataset sqa --root data/sqa --limit 128 --out $S/zs_sqa.jsonl.gz
 python - <<'PY'
 import yaml
-c = yaml.safe_load(open("src/configs/llava15_7b_v7w.yaml"))
+import os
+c = yaml.safe_load(open(os.environ["MMFT_SRC"] + "/configs/llava15_7b_v7w.yaml"))
 c.update(n_train=640, n_val=64, eval_every=10, log_every=5)
 yaml.safe_dump(c, open("smoke/cfg.yaml", "w"))
 PY
@@ -22,5 +23,5 @@ mmft serve --model $S/merged --quant nf4 --port $PORT > $S/serve.log 2>&1 &
 SERVER=$!
 trap 'kill $SERVER 2>/dev/null || true' EXIT
 for _ in $(seq 120); do curl -sf --noproxy '*' "http://127.0.0.1:$PORT/healthz" >/dev/null && break; sleep 5; done
-python src/scripts/serve_check.py --url "http://127.0.0.1:$PORT" --root data/visual7w --preds $S/nf4_val.jsonl.gz --n 20 --out $S/serve.json
+python "$MMFT_SRC/scripts/serve_check.py" --url "http://127.0.0.1:$PORT" --root data/visual7w --preds $S/nf4_val.jsonl.gz --n 20 --out $S/serve.json
 for f in $S/*.jsonl.gz; do mmft summarize --test $f --out ${f%.jsonl.gz}.json; done

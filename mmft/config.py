@@ -20,6 +20,7 @@ class TrainConfig:
     lora_alpha: float = 32.0
     lora_dropout: float = 0.05
     lora_targets: tuple[str, ...] = LM_TARGETS
+    vision_lora_targets: tuple[str, ...] = ()  # e.g. VISION_TARGETS to adapt the CLIP encoder too
     train_projector: bool = True
     # optimisation
     epochs: int = 1
@@ -44,11 +45,13 @@ class TrainConfig:
         unknown = set(raw) - known
         if unknown:
             raise ValueError(f"unknown config keys: {sorted(unknown)}")
-        if "lora_targets" in raw:
-            raw["lora_targets"] = tuple(raw["lora_targets"])
+        for k in ("lora_targets", "vision_lora_targets"):
+            if k in raw:
+                raw[k] = tuple(raw[k])
         return cls(**raw)
 
     def to_dict(self) -> dict:
         d = asdict(self)
         d["lora_targets"] = list(self.lora_targets)
+        d["vision_lora_targets"] = list(self.vision_lora_targets)
         return d

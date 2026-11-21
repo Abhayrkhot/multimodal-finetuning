@@ -25,5 +25,5 @@ for _ in $(seq 120); do
   curl -sf --noproxy '*' "http://127.0.0.1:$PORT/healthz" >/dev/null && break
   sleep 5
 done
-python src/scripts/serve_check.py --url "http://127.0.0.1:$PORT" --root data/visual7w \
+python "$MMFT_SRC/scripts/serve_check.py" --url "http://127.0.0.1:$PORT" --root data/visual7w \
   --preds $R/ft_${NAME}_nf4_v7w_test.jsonl.gz --n 500 --out $R/serve_${TAG}_nf4.json

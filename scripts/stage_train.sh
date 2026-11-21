@@ -1,7 +1,7 @@
 # LoRA fine-tune, evaluate (val subset, test, ScienceQA-IMG for forgetting), merge for deployment.
 #   stage_train.sh [config] [run-name]
 set -euo pipefail
-CFG=${1:-src/configs/llava15_7b_v7w.yaml}; NAME=${2:-v7w_r16}
+CFG=${1:-$MMFT_SRC/configs/llava15_7b_v7w.yaml}; NAME=${2:-v7w_r16}
 R=results/explorer; RUN=runs/$NAME; mkdir -p $R
 mmft train --config "$CFG" --out $RUN
 cp $RUN/run.json $R/train_${NAME}.json; cp $RUN/train_log.jsonl $R/train_${NAME}_log.jsonl

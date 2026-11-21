@@ -60,13 +60,24 @@ def _set_child(root: nn.Module, name: str, module: nn.Module) -> None:
 
 
 def apply_lora(
-    model: nn.Module, *, scope: str, targets: tuple[str, ...], r: int, alpha: float, dropout: float = 0.0
+    model: nn.Module,
+    *,
+    scope: str,
+    targets: tuple[str, ...],
+    r: int,
+    alpha: float,
+    dropout: float = 0.0,
+    exclude=None,
 ) -> list[str]:
-    """Wrap every nn.Linear whose qualified name contains `scope` and ends with one of `targets`."""
+    """Wrap every nn.Linear whose qualified name contains `scope` and ends with one of `targets`
+    (minus names for which `exclude(name)` is true)."""
     names = [
         n
         for n, m in model.named_modules()
-        if isinstance(m, nn.Linear) and scope in n and n.rsplit(".", 1)[-1] in targets
+        if isinstance(m, nn.Linear)
+        and scope in n
+        and n.rsplit(".", 1)[-1] in targets
+        and not (exclude and exclude(n))
     ]
     if not names:
         raise ValueError(f"no nn.Linear under {scope!r} matched {targets}")
