@@ -17,4 +17,10 @@ for q in bf16 int8 nf4; do
   mmft bench --model $S/merged --quant $q --root data/visual7w --batch-sizes 1 16 --iters 3 --out $S/bench_$q.json
 done
 mmft eval --model $S/merged --quant nf4 --root data/visual7w --split val --limit 256 --out $S/nf4_val.jsonl.gz
+PORT=$((20000 + RANDOM % 20000))
+mmft serve --model $S/merged --quant nf4 --port $PORT > $S/serve.log 2>&1 &
+SERVER=$!
+trap 'kill $SERVER 2>/dev/null || true' EXIT
+for _ in $(seq 120); do curl -sf --noproxy '*' "http://127.0.0.1:$PORT/healthz" >/dev/null && break; sleep 5; done
+python src/scripts/serve_check.py --url "http://127.0.0.1:$PORT" --root data/visual7w --preds $S/nf4_val.jsonl.gz --n 20 --out $S/serve.json
 for f in $S/*.jsonl.gz; do mmft summarize --test $f --out ${f%.jsonl.gz}.json; done

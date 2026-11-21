@@ -1,5 +1,6 @@
 # Quantized inference on one GPU: memory/latency/throughput per batch size for bf16, int8 and NF4,
-# then test accuracy of each precision (bf16 here also checks that merging changed nothing).
+# test accuracy of each precision (bf16 here also checks that merging changed nothing), then the
+# HTTP service on NF4 against the offline NF4 predictions.
 #   stage_bench.sh [run-name] [gpu-tag]
 set -euo pipefail
 NAME=${1:-v7w_r16}; TAG=${2:-a100}
@@ -10,3 +11,19 @@ done
 for q in bf16 nf4 int8; do
   mmft eval --model $M --quant $q --root data/visual7w --split test --out $R/ft_${NAME}_${q}_v7w_test.jsonl.gz
 done
+
+# Serving: temperature fitted on validation predictions, abstain below 50% confidence.
+T=$(python -c "
+from mmft.calibration import fit_temperature
+from mmft.evaluate import logits_matrix, read_predictions
+print(round(fit_temperature(*logits_matrix(read_predictions('$R/ft_${NAME}_v7w_val5k.jsonl.gz')[1])), 4))")
+PORT=$((20000 + RANDOM % 20000))
+mmft serve --model $M --quant nf4 --temperature "$T" --abstain-below 0.5 --port $PORT > logs/serve_${TAG}.log 2>&1 &
+SERVER=$!
+trap 'kill $SERVER 2>/dev/null || true' EXIT
+for _ in $(seq 120); do
+  curl -sf --noproxy '*' "http://127.0.0.1:$PORT/healthz" >/dev/null && break
+  sleep 5
+done
+python src/scripts/serve_check.py --url "http://127.0.0.1:$PORT" --root data/visual7w \
+  --preds $R/ft_${NAME}_nf4_v7w_test.jsonl.gz --n 500 --out $R/serve_${TAG}_nf4.json
