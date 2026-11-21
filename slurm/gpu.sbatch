@@ -3,7 +3,7 @@
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=12
-#SBATCH --mem=96G
+#SBATCH --mem=64G
 #SBATCH --time=08:00:00
 #SBATCH --output=/scratch/%u/mmft/logs/%x-%j.out
 # One stage script on one GPU, after the test suite passes on that node:

@@ -30,6 +30,11 @@ def pct(x: float, d: int = 1) -> str:
     return f"{100 * x:.{d}f}%"
 
 
+def ci95(acc: float, n: int) -> str:
+    """Normal-approximation 95% interval half-width for an accuracy, in points."""
+    return f"{196 * (acc * (1 - acc) / n) ** 0.5:.1f}"
+
+
 def err_cut(before_acc: float, after_acc: float) -> str:
     """Relative reduction in error rate, e.g. 20% -> 10% error is -50%."""
     if before_acc >= 1.0:
@@ -86,7 +91,8 @@ def headline(zs, ft, sqa_zs, sqa_ft, train, bench) -> str:
     lines = [
         "| | Zero-shot LLaVA-1.5-7B | + LoRA fine-tuning | Change |",
         "|---|---|---|---|",
-        f"| Visual7W test accuracy ({ft['n']:,} questions) | {pct(zs['accuracy'])} | {pct(ft['accuracy'])} "
+        f"| Visual7W test accuracy ({ft['n']:,} questions, 95% CI) | {pct(zs['accuracy'])} ± {ci95(zs['accuracy'], zs['n'])} "
+        f"| {pct(ft['accuracy'])} ± {ci95(ft['accuracy'], ft['n'])} "
         f"| +{100 * (ft['accuracy'] - zs['accuracy']):.1f} pts |",
         f"| Error on the worst question type (*{zw}*) | {pct(z_err)} | {pct(f_err)} "
         f"| {err_cut(1 - z_err, 1 - f_err)} relative |",

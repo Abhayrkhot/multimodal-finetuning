@@ -135,3 +135,16 @@ probabilities, and an `abstain` flag when confidence is below `--abstain-below`.
 | `scripts/stage_*.sh`, `slurm/` | the exact runs behind the results |
 | `results/explorer/` | per-question predictions (`*.jsonl.gz`), run records, benchmarks |
 | `tests/` | CPU tests on a tiny random LLaVA with the real processor |
+
+## Limitations
+
+- One training seed per schedule, so there are no across-seed error bars; the test set is large
+  enough that the sampling interval on accuracy is about ±0.3 points (shown in the results table).
+- Visual7W's human-written distractors leave some signal in the text alone (see the blank-image
+  control), so accuracy is not purely visual.
+- LLaVA-1.5 (2023) was chosen because its training data is published, which makes the held-out
+  claim checkable; the code loads any Hugging Face `LlavaForConditionalGeneration` checkpoint.
+- The inference benchmark times one scoring forward pass (the deployed workload), not
+  autoregressive generation. bitsandbytes LLM.int8 is slow because of its outlier decomposition;
+  NF4 is the precision that saves memory without giving up throughput.
+- The HTTP service runs one forward pass at a time; there is no request batching.
