@@ -34,6 +34,12 @@ _Pending: not measured yet._
 _Pending: not measured yet._
 <!-- END quant -->
 
+## Serving
+
+<!-- BEGIN serving -->
+_Pending: not measured yet._
+<!-- END serving -->
+
 ## Training run
 
 <!-- BEGIN training -->

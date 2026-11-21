@@ -217,6 +217,23 @@ def controls(zs, ft, blind, ft_merged, sqa_zs) -> str:
     return "\n".join(lines)
 
 
+def serving(serve, temperature) -> str:
+    if not serve:
+        return PENDING
+    return "\n".join(
+        [
+            f"`mmft serve` on the NF4 model (temperature {temperature:.2f} fitted on validation, abstain below 50%), "
+            f"{serve['n']} test questions sent one at a time over HTTP on the same GPU:",
+            "",
+            "| Agreement with offline NF4 predictions | Accuracy | Abstained | Server latency p50 / p95 | Client latency p50 / p95 |",
+            "|---|---|---|---|---|",
+            f"| {pct(serve['agreement_with_offline'])} | {pct(serve['accuracy'])} | {pct(serve['abstain_rate'])} "
+            f"| {serve['server_latency_ms_p50']:.0f} / {serve['server_latency_ms_p95']:.0f} ms "
+            f"| {serve['client_latency_ms_p50']:.0f} / {serve['client_latency_ms_p95']:.0f} ms |",
+        ]
+    )
+
+
 def render() -> str:
     readme = (ROOT / "README.md").read_text()
     zs = summary("zs_v7w_test", "zs_v7w_val5k")
@@ -231,6 +248,8 @@ def render() -> str:
         p = R / f"bench_a100_{q}.json"
         if p.exists():
             bench[q] = json.loads(p.read_text())
+    serve_p = R / "serve_a100_nf4.json"
+    serve = json.loads(serve_p.read_text()) if serve_p.exists() else None
     sections = {
         "headline": headline(zs, ft, sqa_zs, sqa_ft, train, bench),
         "slices": slices(zs, ft, blind),
@@ -238,6 +257,7 @@ def render() -> str:
         "quant": quant(bench, accs),
         "training": training(train),
         "controls": controls(zs, ft, blind, accs.get("bf16"), sqa_zs),
+        "serving": serving(serve, ft["ts"]["temperature"] if ft and "ts" in ft else 1.0),
     }
     for name, body in sections.items():
         pat = re.compile(rf"(<!-- BEGIN {name} -->\n)(?:.*?\n)?(<!-- END {name} -->)", re.S)

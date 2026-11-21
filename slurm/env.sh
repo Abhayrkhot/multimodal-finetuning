@@ -9,3 +9,4 @@ export PATH=$MMFT_HOME/venv/bin:$PATH
 export MMFT_GIT_SHA=$(cat "$MMFT_HOME/src/GIT_SHA" 2>/dev/null || echo unknown)
 export TOKENIZERS_PARALLELISM=false
 mmft() { python -m mmft.cli "$@"; }
+export -f mmft
