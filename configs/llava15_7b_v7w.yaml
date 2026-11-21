@@ -1,0 +1,22 @@
+# LoRA r=16 on every language-model linear layer + the CLIP->LLM projector, all 69,815 Visual7W
+# train questions, one epoch, effective batch 32.
+model_id: llava-hf/llava-1.5-7b-hf
+data_root: data/visual7w
+n_train: null
+n_val: 2000
+seed: 0
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+train_projector: true
+epochs: 1
+batch_size: 16
+grad_accum: 2
+lr: 2.0e-4
+projector_lr: 2.0e-5
+warmup_ratio: 0.03
+max_grad_norm: 1.0
+gradient_checkpointing: true
+num_workers: 10
+log_every: 10
+eval_every: 500

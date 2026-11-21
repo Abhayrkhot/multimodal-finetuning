@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mmft"
+version = "0.1.0"
+description = "LoRA fine-tuning, calibration, subgroup evaluation and quantized inference for a CLIP-based vision language model (LLaVA-1.5)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+  "torch>=2.6",
+  "transformers>=5.0,<6",
+  "accelerate>=1.0",
+  "safetensors>=0.4",
+  "pillow>=10",
+  "pyyaml>=6",
+  "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+sqa = ["datasets>=3"]
+quant = ["bitsandbytes>=0.45"]
+serve = ["fastapi>=0.110", "uvicorn>=0.29"]
+dev = ["pytest>=8", "ruff>=0.6", "httpx>=0.27"]
+
+[project.scripts]
+mmft = "mmft.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["mmft*"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

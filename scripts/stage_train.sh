@@ -1,0 +1,11 @@
+# LoRA fine-tune, evaluate (val subset, test, ScienceQA-IMG for forgetting), merge for deployment.
+#   stage_train.sh [config] [run-name]
+set -euo pipefail
+CFG=${1:-src/configs/llava15_7b_v7w.yaml}; NAME=${2:-v7w_r16}
+R=results/explorer; RUN=runs/$NAME; mkdir -p $R
+mmft train --config "$CFG" --out $RUN
+cp $RUN/run.json $R/train_${NAME}.json; cp $RUN/train_log.jsonl $R/train_${NAME}_log.jsonl
+mmft eval --adapter $RUN --root data/visual7w --split val --limit 5000 --out $R/ft_${NAME}_v7w_val5k.jsonl.gz
+mmft eval --adapter $RUN --root data/visual7w --split test --out $R/ft_${NAME}_v7w_test.jsonl.gz
+mmft eval --adapter $RUN --dataset sqa --root data/sqa --out $R/ft_${NAME}_sqa_test.jsonl.gz
+mmft merge --adapter $RUN --out runs/${NAME}_merged
