@@ -19,7 +19,7 @@ from pathlib import Path
 V7W_QA_URL = "https://ai.stanford.edu/~yukez/papers/resources/dataset_v7w_telling.zip"
 V7W_QA_SHA256 = "fb7b4c869c9be83e76f7ed24d188f731f642ea25381a0db83cd96e23e8b6953e"
 V7W_IMG_URL = "https://vision.stanford.edu/yukezhu/visual7w_images.zip"
-V7W_IMG_SHA256 = "PENDING"
+V7W_IMG_SHA256 = "6a4e3b457b2efc6ab723d6171bfd6bd85b7cedcf8cde5348f355dbb43f1a727e"
 V7W_TYPES = ("what", "where", "when", "who", "why", "how")
 
 LETTERS = "ABCDE"
