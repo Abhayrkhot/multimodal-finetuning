@@ -1,4 +1,4 @@
-# LoRA r=16 on every language-model linear layer + the CLIP->LLM projector, all 69,815 Visual7W
+# LoRA r=16 on every language-model linear layer + the CLIP->LLM projector, all 69,817 Visual7W
 # train questions, one epoch, effective batch 32 (8 x 4 accumulation, no activation checkpointing:
 # fits an 80 GB A100 and avoids the recompute).
 model_id: llava-hf/llava-1.5-7b-hf

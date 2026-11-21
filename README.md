@@ -71,6 +71,7 @@ _Pending: not measured yet._
 | Throughput / peak memory | 13.9 questions/s, 9,273 tokens/s / 64.2 GB |
 | Val accuracy at end (2,000-question monitor subset) | 88.3% |
 | Code / stack | `f98bfb8`, torch 2.14.1+cu126 (CUDA 12.6), transformers 5.24.0 |
+
 2 recipes were trained; the reported run is the one with the highest accuracy on 5,000 validation questions (test accuracy shown only for completeness):
 
 | Run | Adapters | Epochs | Wall time | Val accuracy (5,000) | Test accuracy | Reported |
@@ -90,13 +91,13 @@ _Pending: not measured yet._
 ## How it works
 
 ```
-image ──► CLIP ViT-L/14-336 (frozen, 304M) ──► 576 patch features ──► MLP projector (trained, 21M)
-                                                                           │ 576 image tokens
-prompt ──► Vicuna-7B tokenizer ─────────────────────────────────────────────┴──► Vicuna-7B + LoRA r=16
-           "USER: <image>\n{question}\nA. ..\nB. ..\nC. ..\nD. ..\n                on q,k,v,o,gate,up,down
-            Answer with the option's letter ... ASSISTANT:"                       (frozen base, 40M adapters)
-                                                                                         │
-                                                         next-token logits of "A" "B" "C" "D" ─► softmax
+image ──► CLIP ViT-L/14-336 ──► 576 patch features ──► MLP projector ──► 576 image tokens ─┐
+          frozen 304M + LoRA r=16 in the        (trained, 21M)                             │
+          23 layers LLaVA reads (6.8M)                                                     ▼
+prompt ──► "USER: <image>\n{question}\nA. ..\nB. ..\nC. ..\nD. ..\n           Vicuna-7B, frozen + LoRA r=16
+            Answer with the option's letter ... ASSISTANT:" ───────────────► on q,k,v,o,gate,up,down (40M)
+                                                                                          │
+                                                       next-token logits of "A" "B" "C" "D" ─► softmax
 ```
 
 - **Task and split.** Visual7W "telling": 139,868 questions on 28,653 COCO images, each with one
@@ -114,7 +115,13 @@ prompt ──► Vicuna-7B tokenizer ──────────────�
 - **Adapters** ([`mmft/lora.py`](mmft/lora.py)). LoRA is implemented from scratch: Kaiming-uniform A,
   zero B (a wrapped model starts identical to the base), fp32 adapter weights on a bf16 base under
   autocast, and an exact merge into the base weights for deployment. The projector is trained in
-  fp32 at a 10x lower learning rate than the adapters; CLIP stays frozen.
+  fp32 at a 10x lower learning rate than the adapters. Optionally the CLIP encoder gets adapters
+  too, only in the 23 layers whose output LLaVA uses (it reads the penultimate layer, so the last
+  one would get no gradient).
+- **Recipe selection.** Candidate recipes (decoder adapters only vs. decoder + CLIP adapters, one
+  vs. two epochs) are compared on 5,000 validation questions and the best one is reported; test
+  is never used for a choice. A fourth run (CLIP adapters, two epochs) was stopped early once the
+  two-epoch schedule showed no gain on validation.
 - **Training** ([`mmft/train.py`](mmft/train.py)). Plain PyTorch: AdamW, cosine schedule with
   warmup, gradient checkpointing, loss on the answer letter and end-of-turn token only.
 - **Calibration.** Expected calibration error (15 equal-width bins), NLL and Brier score, before

@@ -211,6 +211,7 @@ def training(train, run, candidates) -> str:
         sel = "\n".join(
             [
                 "",
+                "",
                 f"{len(candidates)} recipes were trained; the reported run is the one with the highest accuracy "
                 "on 5,000 validation questions (test accuracy shown only for completeness):",
                 "",
