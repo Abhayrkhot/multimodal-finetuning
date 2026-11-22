@@ -13,14 +13,14 @@ the README and the data disagree.
 ## Results
 
 <!-- BEGIN headline -->
-| | Zero-shot LLaVA-1.5-7B | + LoRA fine-tuning | Change |
+| | Zero-shot LLaVA-1.5-13B | + LoRA fine-tuning | Change |
 |---|---|---|---|
-| Visual7W test accuracy (42,030 questions, 95% CI) | 80.6% ± 0.4 | 87.0% ± 0.3 | +6.4 pts |
-| Error on the worst question type (*how*) | 33.7% | 25.1% | -25% relative |
-| Expected calibration error, raw / temperature-scaled | 6.2% / 1.4% | 1.4% / 0.6% | |
-| ScienceQA-IMG accuracy (never trained on; forgetting check) | 68.8% | 66.4% | -2.4 pts |
-| Trainable parameters | 7.06B (full fine-tune) | 67.7M (0.96%) | -99.0% |
-| Peak GPU memory, NF4 vs BF16, batch 1-16 (NVIDIA A100 80GB PCIe) | 13.6-19.6 GB | 4.3-10.3 GB | -47% to -68% |
+| Visual7W test accuracy (42,030 questions, 95% CI) | 82.6% ± 0.4 | 88.1% ± 0.3 | +5.5 pts |
+| Error on the worst question type (*how*) | 31.4% | 23.4% | -26% relative |
+| Expected calibration error, raw / temperature-scaled | 8.1% / 1.6% | 1.2% / 0.4% | |
+| ScienceQA-IMG accuracy (never trained on; forgetting check) | 72.6% | 71.1% | -1.5 pts |
+| Trainable parameters | 13.35B (full fine-tune) | 100.8M (0.76%) | -99.2% |
+| Peak GPU memory, NF4 vs BF16, batch 1-16 (NVIDIA A100 80GB PCIe) | 25.6-34.7 GB | 7.6-16.7 GB | -52% to -70% |
 <!-- END headline -->
 
 ## 7B vs 13B
@@ -29,6 +29,7 @@ the README and the data disagree.
 | Base model | Zero-shot test | Fine-tuned test (best on val) | Gain | Worst type error, zero-shot -> tuned | Trainable | NF4 / BF16 peak memory, batch 1 and 16 |
 |---|---|---|---|---|---|---|
 | LLaVA-1.5-7B (`v7w_r16_vis`) | 80.6% | 87.0% | +6.4 pts | how: 33.7% -> 25.1% | 68M of 7.1B (0.96%) | 4.3 / 13.6 GB and 10.3 / 19.6 GB |
+| LLaVA-1.5-13B (`v7w_13b_r16_vis`) | 82.6% | 88.1% | +5.5 pts | how: 31.4% -> 23.4% | 101M of 13.4B (0.76%) | 7.6 / 25.6 GB and 16.7 / 34.7 GB |
 <!-- END sizes -->
 
 ## By question type
@@ -36,13 +37,13 @@ the README and the data disagree.
 <!-- BEGIN slices -->
 | Question type | Questions | Blank image (zero-shot) | Zero-shot | Fine-tuned | Error reduction |
 |---|---|---|---|---|---|
-| what | 20,099 | 39.5% | 83.0% | 88.7% | -34% |
-| where | 6,922 | 33.6% | 83.8% | 90.4% | -41% |
-| when | 1,897 | 61.5% | 83.6% | 90.1% | -40% |
-| who | 4,215 | 52.2% | 84.9% | 90.5% | -37% |
-| why | 2,632 | 56.1% | 79.0% | 86.1% | -34% |
-| how | 6,265 | 48.1% | 66.3% | 74.9% | -25% |
-| **all** | 42,030 | 43.1% | 80.6% | 87.0% | -33% |
+| what | 20,099 | 40.1% | 85.2% | 89.8% | -31% |
+| where | 6,922 | 34.9% | 85.9% | 91.2% | -38% |
+| when | 1,897 | 64.7% | 84.6% | 91.0% | -41% |
+| who | 4,215 | 56.3% | 86.4% | 91.4% | -37% |
+| why | 2,632 | 56.8% | 79.8% | 87.0% | -36% |
+| how | 6,265 | 49.2% | 68.6% | 76.6% | -26% |
+| **all** | 42,030 | 44.4% | 82.6% | 88.1% | -32% |
 <!-- END slices -->
 
 ## Calibration
@@ -50,10 +51,10 @@ the README and the data disagree.
 <!-- BEGIN calibration -->
 | Model | Temperature | Accuracy | Mean confidence | ECE | NLL | Brier |
 |---|---|---|---|---|---|---|
-| Zero-shot, raw | 1.00 | 80.6% | 86.8% | 6.22% | 0.544 | 0.281 |
-| Zero-shot, scaled | 1.36 | 80.6% | 81.9% | 1.39% | 0.513 | 0.272 |
-| Fine-tuned, raw | 1.00 | 87.0% | 88.4% | 1.42% | 0.336 | 0.181 |
-| Fine-tuned, scaled | 1.07 | 87.0% | 87.6% | 0.57% | 0.335 | 0.181 |
+| Zero-shot, raw | 1.00 | 82.6% | 90.7% | 8.07% | 0.540 | 0.262 |
+| Zero-shot, scaled | 1.59 | 82.6% | 83.9% | 1.62% | 0.471 | 0.247 |
+| Fine-tuned, raw | 1.00 | 88.1% | 89.3% | 1.21% | 0.313 | 0.168 |
+| Fine-tuned, scaled | 1.08 | 88.1% | 88.4% | 0.41% | 0.312 | 0.168 |
 <!-- END calibration -->
 
 ## Quantized inference
@@ -63,31 +64,31 @@ Measured on one NVIDIA A100 80GB PCIe. Workload: one forward pass over a Visual7
 
 | Precision | Weights in memory | Test accuracy | Batch | Peak memory | vs BF16 | Latency p50 | Questions/s |
 |---|---|---|---|---|---|---|---|
-| BF16 | 13.16 GB | 87.0% | 1 | 13.57 GB |  | 71.2 ms | 14.0 |
-|  |  |  | 2 | 13.97 GB |  | 128.4 ms | 15.6 |
-|  |  |  | 4 | 14.77 GB |  | 255.4 ms | 15.7 |
-|  |  |  | 8 | 16.39 GB |  | 480.1 ms | 16.7 |
-|  |  |  | 16 | 19.63 GB |  | 935.6 ms | 17.1 |
-| INT8 | 6.84 GB | 86.9% | 1 | 7.28 GB | -46% | 193.9 ms | 5.2 |
-|  |  |  | 2 | 7.71 GB | -45% | 238.0 ms | 8.4 |
-|  |  |  | 4 | 8.57 GB | -42% | 380.9 ms | 10.5 |
-|  |  |  | 8 | 10.31 GB | -37% | 656.9 ms | 12.2 |
-|  |  |  | 16 | 13.79 GB | -30% | 1232.8 ms | 13.0 |
-| NF4 | 3.79 GB | 86.7% | 1 | 4.28 GB | -68% | 99.3 ms | 10.1 |
-|  |  |  | 2 | 4.68 GB | -66% | 154.6 ms | 12.9 |
-|  |  |  | 4 | 5.45 GB | -63% | 284.0 ms | 14.1 |
-|  |  |  | 8 | 7.06 GB | -57% | 515.6 ms | 15.5 |
-|  |  |  | 16 | 10.34 GB | -47% | 986.6 ms | 16.2 |
+| BF16 | 24.99 GB | pending | 1 | 25.60 GB |  | 130.9 ms | 7.6 |
+|  |  |  | 2 | 26.20 GB |  | 236.2 ms | 8.5 |
+|  |  |  | 4 | 27.40 GB |  | 428.4 ms | 9.3 |
+|  |  |  | 8 | 29.83 GB |  | 846.1 ms | 9.5 |
+|  |  |  | 16 | 34.69 GB |  | 1680.2 ms | 9.5 |
+| INT8 | 12.75 GB | pending | 1 | 13.40 GB | -48% | 248.4 ms | 4.0 |
+|  |  |  | 2 | 14.04 GB | -46% | 341.8 ms | 5.9 |
+|  |  |  | 4 | 15.31 GB | -44% | 584.0 ms | 6.8 |
+|  |  |  | 8 | 17.90 GB | -40% | 1049.7 ms | 7.6 |
+|  |  |  | 16 | 23.06 GB | -34% | 2004.5 ms | 8.0 |
+| NF4 | 6.90 GB | pending | 1 | 7.64 GB | -70% | 175.9 ms | 5.7 |
+|  |  |  | 2 | 8.23 GB | -69% | 280.9 ms | 7.1 |
+|  |  |  | 4 | 9.41 GB | -66% | 476.6 ms | 8.4 |
+|  |  |  | 8 | 11.79 GB | -60% | 898.5 ms | 8.9 |
+|  |  |  | 16 | 16.69 GB | -52% | 1752.6 ms | 9.1 |
 <!-- END quant -->
 
 ## Serving
 
 <!-- BEGIN serving -->
-`mmft serve` on the NF4 model (temperature 1.07 fitted on validation, abstain below 50%), a random sample of 500 test questions sent one at a time over HTTP on the same GPU:
+`mmft serve` on the NF4 model (temperature 1.08 fitted on validation, abstain below 50%), a random sample of 500 test questions sent one at a time over HTTP on the same GPU:
 
 | Agreement with offline NF4 predictions | Accuracy | Abstained | Server latency p50 / p95 | Client latency p50 / p95 |
 |---|---|---|---|---|
-| 99.6% | 85.0% | 7.8% | 112 / 124 ms | 114 / 126 ms |
+| 99.2% | 85.2% | 6.0% | 188 / 200 ms | 189 / 202 ms |
 <!-- END serving -->
 
 ## Training run
@@ -96,29 +97,30 @@ Measured on one NVIDIA A100 80GB PCIe. Workload: one forward pass over a Visual7
 | | |
 |---|---|
 | Training questions | 69,817 (Visual7W train) x 1 epoch(s) |
-| Adapters | LoRA r=16, alpha=32 on 224 language-model linear layers (40.0M) + 138 CLIP linear layers (6.8M) + projector (21.0M) |
+| Adapters | LoRA r=16, alpha=32 on 280 language-model linear layers (62.6M) + 138 CLIP linear layers (6.8M) + projector (31.5M) |
 | Optimiser | AdamW, lr 0.0002 (LoRA) / 2e-05 (projector), cosine, 3% warmup, batch 32 |
-| Steps / wall time | 2,181 / 84 min on one NVIDIA H200 |
-| Throughput / peak memory | 13.9 questions/s, 9,273 tokens/s / 64.2 GB |
-| Val accuracy at end (2,000-question monitor subset) | 88.3% |
-| Code / stack | `f98bfb8`, torch 2.14.1+cu126 (CUDA 12.6), transformers 5.24.0 |
+| Steps / wall time | 2,181 / 138 min on one NVIDIA H200 |
+| Throughput / peak memory | 8.4 questions/s, 5,625 tokens/s / 100.9 GB |
+| Val accuracy at end (2,000-question monitor subset) | 89.8% |
+| Code / stack | `2f5c239`, torch 2.14.1+cu126 (CUDA 12.6), transformers 5.24.0 |
 
-3 recipes were trained; the reported run is the one with the highest accuracy on 5,000 validation questions (test and ScienceQA-IMG shown only for completeness):
+5 recipes were trained; the reported run is the one with the highest accuracy on 5,000 validation questions (test and ScienceQA-IMG shown only for completeness):
 
 | Run | Base | Adapters | Epochs | Wall time | Val accuracy (5,000) | Test accuracy | ScienceQA-IMG | Reported |
 |---|---|---|---|---|---|---|---|---|
 | `v7w_r16` | 7B | LM LoRA + projector | 1 | 79 min | 87.26% | 86.89% | 68.4% |  |
 | `v7w_r16_e2` | 7B | LM LoRA + projector | 2 | 154 min | 87.08% | 87.05% | 67.1% |  |
-| `v7w_r16_vis` | 7B | LM LoRA + projector + CLIP LoRA | 1 | 84 min | 87.64% | 87.02% | 66.4% | yes |
+| `v7w_r16_vis` | 7B | LM LoRA + projector + CLIP LoRA | 1 | 84 min | 87.64% | 87.02% | 66.4% |  |
+| `v7w_13b_r16` | 13B | LM LoRA + projector | 1 | 130 min | 88.62% | 87.94% | 71.2% |  |
+| `v7w_13b_r16_vis` | 13B | LM LoRA + projector + CLIP LoRA | 1 | 138 min | 88.78% | 88.12% | 71.1% | yes |
 <!-- END training -->
 
 ## Controls
 
 <!-- BEGIN controls -->
-- **Harness check.** Zero-shot ScienceQA-IMG accuracy is 68.8% with this prompt, image padding and letter scoring; the LLaVA-1.5 paper reports 66.8% for the same model (it parses generated text, while this harness compares the option letters' logits directly).
-- **The image matters.** With every image replaced by a blank one, zero-shot accuracy falls from 80.6% to 43.1% (chance is 25%): Visual7W's distractors leave some text-only signal, which is why the blank-image row is reported per type.
-- **No answer-position shortcut.** Correct answers are uniform over A-D by construction; the fine-tuned model predicts A 25.2%, B 25.1%, C 24.9%, D 24.8%.
-- **Merging is lossless.** The merged BF16 checkpoint scores 87.02% vs 87.02% with separate adapters (+0.00 pts).
+- **Harness check.** Zero-shot ScienceQA-IMG accuracy is 72.6% with this prompt, image padding and letter scoring; the LLaVA-1.5 paper reports 71.6% for the same model (it parses generated text, while this harness compares the option letters' logits directly).
+- **The image matters.** With every image replaced by a blank one, zero-shot accuracy falls from 82.6% to 44.4% (chance is 25%): Visual7W's distractors leave some text-only signal, which is why the blank-image row is reported per type.
+- **No answer-position shortcut.** Correct answers are uniform over A-D by construction; the fine-tuned model predicts A 25.1%, B 25.0%, C 24.6%, D 25.2%.
 <!-- END controls -->
 
 ## How it works

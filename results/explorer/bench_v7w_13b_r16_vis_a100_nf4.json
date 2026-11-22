@@ -1,0 +1,63 @@
+{
+  "model": "runs/v7w_13b_r16_vis_merged",
+  "quant": "nf4",
+  "weights_mem_gb": 6.904009819030762,
+  "rows": [
+    {
+      "batch_size": 1,
+      "seq_len": 663,
+      "latency_ms_p50": 175.9109115600586,
+      "latency_ms_p90": 176.38604736328125,
+      "throughput_qps": 5.684695685625989,
+      "peak_mem_gb": 7.642440319061279,
+      "peak_reserved_gb": 7.76171875
+    },
+    {
+      "batch_size": 2,
+      "seq_len": 663,
+      "latency_ms_p50": 280.8857727050781,
+      "latency_ms_p90": 282.0679626464844,
+      "throughput_qps": 7.120332157584719,
+      "peak_mem_gb": 8.23096513748169,
+      "peak_reserved_gb": 8.560546875
+    },
+    {
+      "batch_size": 4,
+      "seq_len": 663,
+      "latency_ms_p50": 476.6243896484375,
+      "latency_ms_p90": 477.20037841796875,
+      "throughput_qps": 8.392352734929148,
+      "peak_mem_gb": 9.409939289093018,
+      "peak_reserved_gb": 9.99609375
+    },
+    {
+      "batch_size": 8,
+      "seq_len": 667,
+      "latency_ms_p50": 898.545166015625,
+      "latency_ms_p90": 900.284423828125,
+      "throughput_qps": 8.90328088400276,
+      "peak_mem_gb": 11.79343032836914,
+      "peak_reserved_gb": 13.66796875
+    },
+    {
+      "batch_size": 16,
+      "seq_len": 669,
+      "latency_ms_p50": 1752.553466796875,
+      "latency_ms_p90": 1755.1021728515625,
+      "throughput_qps": 9.129536018802922,
+      "peak_mem_gb": 16.69096040725708,
+      "peak_reserved_gb": 22.02734375
+    }
+  ],
+  "env": {
+    "git_sha": "2f5c239",
+    "utc": "2026-11-22T02:16:21Z",
+    "gpu": "NVIDIA A100 80GB PCIe",
+    "gpu_mem_gb": 79.2,
+    "python": "3.13.5",
+    "torch": "2.14.1+cu126",
+    "cuda": "12.6",
+    "transformers": "5.24.0",
+    "bitsandbytes": "0.50.2"
+  }
+}

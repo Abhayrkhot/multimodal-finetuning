@@ -1,0 +1,72 @@
+{
+  "config": {
+    "model_id": "llava-hf/llava-1.5-13b-hf",
+    "data_root": "data/visual7w",
+    "n_train": null,
+    "n_val": 2000,
+    "seed": 0,
+    "lora_r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.05,
+    "lora_targets": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "vision_lora_targets": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "out_proj",
+      "fc1",
+      "fc2"
+    ],
+    "train_projector": true,
+    "epochs": 1,
+    "batch_size": 8,
+    "grad_accum": 4,
+    "lr": 0.0002,
+    "projector_lr": 2e-05,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03,
+    "max_grad_norm": 1.0,
+    "gradient_checkpointing": false,
+    "num_workers": 10,
+    "log_every": 10,
+    "eval_every": 500,
+    "extra": {}
+  },
+  "params": {
+    "base_params": 13351494656,
+    "trainable_params": 100837376,
+    "lora_params": 69369856,
+    "vision_lora_params": 6782976,
+    "projector_params": 31467520,
+    "lora_modules": 280,
+    "vision_lora_modules": 138,
+    "trainable_fraction": 0.0075525159241017934
+  },
+  "n_train": 69817,
+  "n_val_monitor": 2000,
+  "optimizer_steps": 2181,
+  "train_seconds": 8283.279148578644,
+  "samples_per_s": 8.425648677067203,
+  "tokens_per_s": 5624.816110174781,
+  "peak_mem_gb": 100.90981006622314,
+  "final_val_acc": 0.898,
+  "env": {
+    "git_sha": "2f5c239",
+    "utc": "2026-11-22T01:50:03Z",
+    "gpu": "NVIDIA H200",
+    "gpu_mem_gb": 139.8,
+    "python": "3.13.5",
+    "torch": "2.14.1+cu126",
+    "cuda": "12.6",
+    "transformers": "5.24.0",
+    "bitsandbytes": "0.50.2"
+  }
+}

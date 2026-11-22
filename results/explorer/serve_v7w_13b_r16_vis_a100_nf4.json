@@ -1,0 +1,10 @@
+{
+  "n": 500,
+  "agreement_with_offline": 0.992,
+  "accuracy": 0.852,
+  "abstain_rate": 0.06,
+  "client_latency_ms_p50": 188.70741315186024,
+  "client_latency_ms_p95": 201.5014011412859,
+  "server_latency_ms_p50": 187.56530992686749,
+  "server_latency_ms_p95": 200.0583689659834
+}
