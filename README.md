@@ -1,8 +1,8 @@
 # multimodal-finetuning
 
-LoRA fine-tuning of a CLIP-based vision language model, **LLaVA-1.5-7B** (CLIP ViT-L/14-336
-image encoder, 2-layer MLP projection, Vicuna-7B decoder), on **Visual7W** 4-way multiple-choice
-visual question answering. The pipeline covers data, training, evaluation by question type,
+LoRA fine-tuning of a CLIP-based vision language model, **LLaVA-1.5** at 7B and 13B (CLIP
+ViT-L/14-336 image encoder, 2-layer MLP projection, Vicuna decoder), on **Visual7W** 4-way
+multiple-choice visual question answering. The pipeline covers data, training, evaluation by question type,
 calibration, quantized inference on an A100, and a small HTTP service. Adapters (LoRA) are written
 directly in PyTorch.
 
@@ -125,10 +125,11 @@ Measured on one NVIDIA A100 80GB PCIe. Workload: one forward pass over a Visual7
 
 ```
 image ──► CLIP ViT-L/14-336 ──► 576 patch features ──► MLP projector ──► 576 image tokens ─┐
-          frozen 304M + LoRA r=16 in the        (trained, 21M)                             │
-          23 layers LLaVA reads (6.8M)                                                     ▼
-prompt ──► "USER: <image>\n{question}\nA. ..\nB. ..\nC. ..\nD. ..\n           Vicuna-7B, frozen + LoRA r=16
-            Answer with the option's letter ... ASSISTANT:" ───────────────► on q,k,v,o,gate,up,down (40M)
+          frozen 304M + LoRA r=16 in the     (trained; 21M for 7B,                         │
+          23 layers LLaVA reads (6.8M)        31M for 13B)                                 ▼
+prompt ──► "USER: <image>\n{question}\nA. ..\nB. ..\nC. ..\nD. ..\n       Vicuna-7B or 13B, frozen + LoRA
+            Answer with the option's letter ... ASSISTANT:" ───────────► r=16 on q,k,v,o,gate,up,down
+                                                                          (40M for 7B, 63M for 13B)
                                                                                           │
                                                        next-token logits of "A" "B" "C" "D" ─► softmax
 ```
@@ -151,12 +152,13 @@ prompt ──► "USER: <image>\n{question}\nA. ..\nB. ..\nC. ..\nD. ..\n       
   fp32 at a 10x lower learning rate than the adapters. Optionally the CLIP encoder gets adapters
   too, only in the 23 layers whose output LLaVA uses (it reads the penultimate layer, so the last
   one would get no gradient).
-- **Recipe selection.** Candidate recipes (decoder adapters only vs. decoder + CLIP adapters, one
-  vs. two epochs) are compared on 5,000 validation questions and the best one is reported; test
-  is never used for a choice. A fourth run (CLIP adapters, two epochs) was stopped early once the
-  two-epoch schedule showed no gain on validation.
+- **Recipe selection.** Candidate runs (7B or 13B base, decoder adapters only vs. decoder + CLIP
+  adapters, one vs. two epochs) are compared on 5,000 validation questions and the best one is
+  reported; test is never used for a choice. A 7B run with CLIP adapters for two epochs was stopped
+  early once the two-epoch schedule showed no gain on validation, so 13B was trained for one epoch.
 - **Training** ([`mmft/train.py`](mmft/train.py)). Plain PyTorch: AdamW, cosine schedule with
-  warmup, gradient checkpointing, loss on the answer letter and end-of-turn token only.
+  warmup, loss on the answer letter and end-of-turn token only. Activation checkpointing is
+  available but off for the reported runs (micro-batch 8 fits: ~65 GB for 7B, ~100 GB for 13B).
 - **Calibration.** Expected calibration error (15 equal-width bins), NLL and Brier score, before
   and after temperature scaling, with the temperature fitted on 5,000 validation questions and
   applied to test.
@@ -166,19 +168,22 @@ prompt ──► "USER: <image>\n{question}\nA. ..\nB. ..\nC. ..\nD. ..\n       
 
 ## Reproduce
 
-Runs were on Northeastern's Explorer cluster (Slurm, one GPU per job); any CUDA GPU with 40 GB+
-works. Tests and lint run on a CPU.
+Runs were on Northeastern's Explorer cluster (Slurm, one GPU per job): training on H200s, the
+inference benchmark on an A100. 7B training fits an 80 GB GPU; 13B as configured needs ~100 GB
+(or turn on `gradient_checkpointing`). Tests and lint run on a CPU.
 
 ```bash
 pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cu126
-pip install -r requirements.txt bitsandbytes==0.50.2
+pip install -r requirements.txt bitsandbytes==0.50.2 && pip install --no-deps -e .   # `mmft` command
+export MMFT_SRC=$PWD                                    # stage scripts find configs/ and scripts/ here
 python -m mmft.cli data v7w --root data/visual7w        # 1.9 GB from Stanford, sha256-checked
 python -m mmft.cli data sqa --root data/sqa             # ScienceQA-IMG test (harness check)
-bash scripts/stage_baseline.sh                          # zero-shot, blank-image control, ScienceQA
-bash scripts/stage_train.sh                             # train, evaluate (val, test, ScienceQA)
-bash scripts/stage_merge.sh v7w_r16_vis                 # fold the selected run's adapters into the weights
-bash scripts/stage_bench.sh v7w_r16_vis                 # bf16 / int8 / nf4 memory and latency, serving
-bash scripts/stage_quant_acc.sh v7w_r16_vis             # test accuracy at each precision
+M=llava-hf/llava-1.5-13b-hf; RUN=v7w_13b_r16_vis
+bash scripts/stage_baseline.sh $M 13b_                  # zero-shot, blank-image control, ScienceQA
+bash scripts/stage_train.sh configs/llava15_13b_v7w_vis.yaml $RUN   # train; evaluate val, test, ScienceQA
+bash scripts/stage_merge.sh $RUN                        # fold the selected run's adapters into the weights
+bash scripts/stage_bench.sh $RUN                        # bf16 / int8 / nf4 memory and latency, serving
+bash scripts/stage_quant_acc.sh $RUN                    # test accuracy at each precision
 python scripts/gen_readme.py                            # rebuild the tables above
 ```
 
@@ -188,7 +193,7 @@ On Slurm: `sbatch slurm/setup.sbatch`, then `sbatch slurm/gpu.sbatch scripts/sta
 ## Serve
 
 ```bash
-python -m mmft.cli serve --model runs/v7w_r16_merged --quant nf4 --temperature <T from val>
+python -m mmft.cli serve --model runs/v7w_13b_r16_vis_merged --quant nf4 --temperature <T from val>
 curl -s localhost:8000/v1/answer -H 'content-type: application/json' \
   -d '{"image_b64": "'"$(base64 < photo.jpg)"'", "question": "Where is he sitting?",
        "choices": ["At a park.", "On a bench.", "On the grass.", "At a dining table."]}'

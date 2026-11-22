@@ -5,7 +5,7 @@
 #   stage_bench.sh [run-name] [gpu-tag]
 set -euo pipefail
 NAME=${1:-v7w_r16}; TAG=${2:-a100}
-R=results/explorer; M=runs/${NAME}_merged; mkdir -p $R
+R=results/explorer; M=runs/${NAME}_merged; mkdir -p $R logs
 for q in bf16 int8 nf4; do
   mmft bench --model $M --quant $q --root data/visual7w --out $R/bench_${NAME}_${TAG}_${q}.json
 done
