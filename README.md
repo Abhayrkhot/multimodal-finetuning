@@ -64,17 +64,17 @@ Measured on one NVIDIA A100 80GB PCIe. Workload: one forward pass over a Visual7
 
 | Precision | Weights in memory | Test accuracy | Batch | Peak memory | vs BF16 | Latency p50 | Questions/s |
 |---|---|---|---|---|---|---|---|
-| BF16 | 24.99 GB | pending | 1 | 25.60 GB |  | 130.9 ms | 7.6 |
+| BF16 | 24.99 GB | 88.1% | 1 | 25.60 GB |  | 130.9 ms | 7.6 |
 |  |  |  | 2 | 26.20 GB |  | 236.2 ms | 8.5 |
 |  |  |  | 4 | 27.40 GB |  | 428.4 ms | 9.3 |
 |  |  |  | 8 | 29.83 GB |  | 846.1 ms | 9.5 |
 |  |  |  | 16 | 34.69 GB |  | 1680.2 ms | 9.5 |
-| INT8 | 12.75 GB | pending | 1 | 13.40 GB | -48% | 248.4 ms | 4.0 |
+| INT8 | 12.75 GB | 88.0% | 1 | 13.40 GB | -48% | 248.4 ms | 4.0 |
 |  |  |  | 2 | 14.04 GB | -46% | 341.8 ms | 5.9 |
 |  |  |  | 4 | 15.31 GB | -44% | 584.0 ms | 6.8 |
 |  |  |  | 8 | 17.90 GB | -40% | 1049.7 ms | 7.6 |
 |  |  |  | 16 | 23.06 GB | -34% | 2004.5 ms | 8.0 |
-| NF4 | 6.90 GB | pending | 1 | 7.64 GB | -70% | 175.9 ms | 5.7 |
+| NF4 | 6.90 GB | 87.9% | 1 | 7.64 GB | -70% | 175.9 ms | 5.7 |
 |  |  |  | 2 | 8.23 GB | -69% | 280.9 ms | 7.1 |
 |  |  |  | 4 | 9.41 GB | -66% | 476.6 ms | 8.4 |
 |  |  |  | 8 | 11.79 GB | -60% | 898.5 ms | 8.9 |
@@ -121,6 +121,7 @@ Measured on one NVIDIA A100 80GB PCIe. Workload: one forward pass over a Visual7
 - **Harness check.** Zero-shot ScienceQA-IMG accuracy is 72.6% with this prompt, image padding and letter scoring; the LLaVA-1.5 paper reports 71.6% for the same model (it parses generated text, while this harness compares the option letters' logits directly).
 - **The image matters.** With every image replaced by a blank one, zero-shot accuracy falls from 82.6% to 44.4% (chance is 25%): Visual7W's distractors leave some text-only signal, which is why the blank-image row is reported per type.
 - **No answer-position shortcut.** Correct answers are uniform over A-D by construction; the fine-tuned model predicts A 25.1%, B 25.0%, C 24.6%, D 25.2%.
+- **Merging is lossless.** The merged BF16 checkpoint scores 88.12% vs 88.12% with separate adapters (+0.00 pts).
 <!-- END controls -->
 
 ## How it works
@@ -229,6 +230,7 @@ probabilities, and an `abstain` flag when confidence is below `--abstain-below`.
 - LLaVA-1.5 (2023) was chosen because its training data is published, which makes the held-out
   claim checkable; the code loads any Hugging Face `LlavaForConditionalGeneration` checkpoint.
 - The inference benchmark times one scoring forward pass (the deployed workload), not
-  autoregressive generation. bitsandbytes LLM.int8 is slow because of its outlier decomposition;
-  NF4 is the precision that saves memory without giving up throughput.
+  autoregressive generation. bitsandbytes LLM.int8 is slow because of its outlier decomposition.
+  NF4 keeps about 95% of BF16 throughput at batch 16 but is slower at batch 1 (dequantization
+  dominates when the GPU is not saturated).
 - The HTTP service runs one forward pass at a time; there is no request batching.
